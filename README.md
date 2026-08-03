@@ -20,11 +20,15 @@ The player starts in the HK-05 Titan mech. The first wave contains four enemies.
 - Procedural 3D Hong Kong-inspired environment generated at runtime.
 - 5 m tall player mech built from procedural meshes.
 - First-person cockpit camera and third-person chase camera.
+- Visible first-person cockpit framing with lower mech armor, mechanical weapon mounts, and separate machine-gun and rocket-pod models kept clear of the center aim area.
 - Ground movement with acceleration, gravity, floor snapping, and boost movement.
 - Automatic hitscan machine gun with tracers and magazine reloads.
 - Direct-fire rocket launcher with projectile travel and area damage.
+- Selectable missile port that launches an eight-missile homing salvo when a target is locked.
+- Unguided missile salvos that fly straight through the aim point when no target is locked.
 - Hostile NPC mechs with pursuit, line-of-sight shooting, health, and destruction effects.
 - Wave spawning, kill tracking, combat announcements, and a code-generated HUD.
+- Reference-inspired settings menu with display, audio, controls, and gameplay pages.
 - Compatible with the Godot 4.7 project format.
 - No mandatory imported models, textures, sounds, or plugins.
 
@@ -48,16 +52,21 @@ The world is assembled by scripts when the main scene starts. There is no separa
 | `D` | Strafe right. |
 | `Shift` | Boost movement speed while held. |
 | Mouse movement | Rotate the mech's aim and camera. |
+| `1` | Return to dual-hand weapons. |
+| `2` | Return to dual-hand weapons. |
+| `3` | Enter missile-port mode and temporarily disable both hand weapons. |
 | `V` | Switch between first-person and third-person view. |
-| `Esc` | Release the mouse cursor or capture it again. |
+| `Esc` | Open or close the settings menu and pause the game. |
 
 ### Combat
 
 | Input | Action |
 | --- | --- |
-| Left mouse button | Fire the machine gun. Hold to fire automatically. |
-| Right mouse button | Fire one rocket. |
+| Left mouse button | Fire the left-hand direct-fire rocket launcher. |
+| Right mouse button | Fire the right-hand machine gun. Hold to fire automatically. |
 | `R` | Reload the machine gun. |
+
+When the missile port is selected with `3`, both hand weapons are disabled. Press the right mouse button to launch eight missiles directly toward the current aim point. Press the left mouse button to launch eight homing missiles only when an enemy has been locked. The left-button salvo uses the last valid locked enemy; if there is no lock, it does not fire.
 
 ### Movement Details
 
@@ -70,7 +79,7 @@ The current movement system is intentionally simple and grounded:
 - `Shift` multiplies the normal movement speed by the boost multiplier while held.
 - Gravity keeps the mech grounded, and floor snapping helps it stay attached to streets and sidewalks.
 - There is currently no jump, crouch, slide, dash, melee attack, or wall-running system.
-- In first-person mode the external mech body is hidden so its geometry cannot block the cockpit view while moving. In third-person mode the complete mech body is visible.
+- In first-person mode the complete external mech body remains hidden from the camera, but a dedicated cockpit interior, lower armor, mechanical arms, machine gun, and rocket pod remain visible around the edges of the screen. This keeps the mech presence without placing the full body in front of the aim point. In third-person mode the complete mech body is visible.
 
 ## Combat Systems
 
@@ -110,7 +119,7 @@ Enemy mechs use a simple combat loop:
 
 ### First Person
 
-The cockpit camera is the default view. The external mech mesh is hidden in this mode to keep armor and weapon geometry from entering the screen. The HUD remains visible and the center of the screen controls both machine-gun and rocket aim.
+The cockpit camera is the default view. A dedicated first-person rig shows the cockpit frame, lower armor, mechanical weapon mounts, machine gun, and rocket pod at the lower and side edges of the screen. The center stays open for aiming. The HUD shows current speed, boost state, armor, ammunition, and weapon readiness.
 
 ### Third Person
 
@@ -127,7 +136,10 @@ The chase camera follows the mech through a spring arm. The full procedural mech
 | `scripts/MechPlayer.gd` | Controls player movement, cameras, view switching, weapons, reloads, armor, and aiming. |
 | `scripts/EnemyMech.gd` | Controls enemy movement, pursuit, line-of-sight attacks, health, and destruction. |
 | `scripts/RocketProjectile.gd` | Handles rocket travel, collision, detonation, and area damage. |
+| `scripts/HomingMissile.gd` | Handles individual missile homing, straight aim-point travel, collision, and detonation. |
 | `scripts/GameHUD.gd` | Creates and updates the runtime HUD and combat announcements. |
+| `scripts/SettingsManager.gd` | Loads, applies, and saves player settings to `user://mech_settings.cfg`. |
+| `scripts/SettingsMenu.gd` | Creates the pause/settings interface and connects controls to the settings manager. |
 
 ## Design Reference
 
@@ -137,6 +149,7 @@ This project uses patterns from the sibling `HonGong-ShootingRange` project:
 - The player uses a `CharacterBody3D` controller with a dedicated camera rig, following the reference project's FPS structure.
 - World geometry, lights, signs, and combat effects are assembled through GDScript rather than a large authored scene.
 - The Hong Kong setting uses district naming, neon lighting, dense facades, narrow roads, overhead wires, and market details inspired by the reference project.
+- The settings menu follows the reference project's `SettingsScreen.gd` and `SettingsManager.gd` split, reduced to the options currently supported by this prototype.
 
 ## Current Prototype Limitations
 
@@ -144,7 +157,7 @@ This project uses patterns from the sibling `HonGong-ShootingRange` project:
 - There is no multiplayer or networking layer.
 - Enemy behavior is intentionally lightweight and does not yet use navigation meshes, cover tactics, squad coordination, or advanced pathfinding.
 - There are no imported character animations, sound effects, music, or authored 3D models yet.
-- There is no save system, mission selection, inventory, upgrade system, or settings menu.
+- There is no save system, mission selection, inventory, or upgrade system. Settings are saved locally, but there is no account-level progression.
 - The movement system does not currently include jumping, crouching, melee, or aerial movement.
 
 ## Possible Next Steps

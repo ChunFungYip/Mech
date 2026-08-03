@@ -4,11 +4,14 @@ const HongKongDistrictScript = preload("res://scripts/HongKongDistrict.gd")
 const MechPlayerScript = preload("res://scripts/MechPlayer.gd")
 const EnemyMechScript = preload("res://scripts/EnemyMech.gd")
 const RocketProjectileScript = preload("res://scripts/RocketProjectile.gd")
+const HomingMissileScript = preload("res://scripts/HomingMissile.gd")
 const GameHUDScript = preload("res://scripts/GameHUD.gd")
+const SettingsMenuScript = preload("res://scripts/SettingsMenu.gd")
 
 var player: Node3D
 var district: Node3D
 var hud: CanvasLayer
+var settings_menu: CanvasLayer
 var wave: int = 1
 var kills: int = 0
 var _next_wave_timer: float = 0.0
@@ -23,6 +26,7 @@ func _ready() -> void:
     _spawn_player()
     _spawn_wave()
     _spawn_hud()
+    _spawn_settings_menu()
 
 func _build_environment() -> void:
     var world_environment := WorldEnvironment.new()
@@ -97,6 +101,11 @@ func _spawn_hud() -> void:
     add_child(hud)
     hud.call("setup", player, self)
 
+func _spawn_settings_menu() -> void:
+    settings_menu = SettingsMenuScript.new()
+    settings_menu.name = "SettingsMenu"
+    add_child(settings_menu)
+
 func get_enemy_count() -> int:
     return get_tree().get_nodes_in_group("enemy_mechs").size()
 
@@ -109,6 +118,28 @@ func spawn_player_rocket(origin: Vector3, direction: Vector3, shooter: Node) -> 
     var rocket: Node3D = RocketProjectileScript.new()
     add_child(rocket)
     rocket.call("setup", self, shooter, origin, direction, &"enemy_mechs")
+
+func spawn_player_missile_salvo(origin: Vector3, direction: Vector3, shooter: Node, target: Node3D) -> void:
+    var side := direction.cross(Vector3.UP).normalized()
+    if side.length_squared() < 0.001:
+        side = Vector3.RIGHT
+    var up := side.cross(direction).normalized()
+    var launch_offsets: Array[Vector2] = [
+        Vector2(-0.72, 0.18),
+        Vector2(-0.48, 0.18),
+        Vector2(-0.24, 0.18),
+        Vector2(0.00, 0.18),
+        Vector2(0.24, -0.18),
+        Vector2(0.48, -0.18),
+        Vector2(0.72, -0.18),
+        Vector2(0.00, -0.42),
+    ]
+    for offset in launch_offsets:
+        var missile: Node3D = HomingMissileScript.new()
+        add_child(missile)
+        var launch_position := origin + side * offset.x + up * offset.y
+        var launch_direction := (direction + side * offset.x * 0.045 + up * offset.y * 0.045).normalized()
+        missile.call("setup", self, shooter, launch_position, launch_direction, target)
 
 func spawn_tracer(start: Vector3, finish: Vector3, color: Color) -> void:
     var difference := finish - start

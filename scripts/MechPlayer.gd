@@ -1,6 +1,11 @@
 extends CharacterBody3D
 class_name MechPlayer
 
+enum WeaponMode {
+    DUAL_HANDS,
+    MISSILE_POD,
+}
+
 signal stats_changed
 signal view_mode_changed(first_person: bool)
 signal announcement(text: String)
@@ -19,18 +24,29 @@ signal announcement(text: String)
 @export var rocket_reserve_max: int = 12
 @export var rocket_damage: float = 110.0
 @export var rocket_explosion_radius: float = 5.0
+@export var missile_salvo_count: int = 4
+@export var missile_salvo_size: int = 8
+@export var missile_damage: float = 46.0
+@export var missile_explosion_radius: float = 2.8
 
 var health: float = health_max
 var machinegun_ammo: int = machinegun_magazine_size
 var machinegun_reserve: int = machinegun_reserve_max
 var rocket_ammo: int = rocket_magazine_size
 var rocket_reserve: int = rocket_reserve_max
+var current_weapon: WeaponMode = WeaponMode.DUAL_HANDS
 var first_person: bool = true
 var yaw: float = 0.0
 var pitch: float = -0.08
+var mouse_sensitivity_x: float = 0.0025
+var mouse_sensitivity_y: float = 0.0022
+var mouse_invert_y: bool = false
 
 var game: Node3D
 var _body_visual: Node3D
+var _cockpit_visual: Node3D
+var _first_person_weapon_visual: Node3D
+var _missile_port_visual: Node3D
 var _view_pivot: Node3D
 var _spring_arm: SpringArm3D
 var _first_person_camera: Camera3D
@@ -38,6 +54,9 @@ var _third_person_camera: Camera3D
 var _machinegun_cooldown: float = 0.0
 var _rocket_cooldown: float = 0.0
 var _reload_timer: float = 0.0
+var _missile_lock_target: Node3D
+const MISSILE_LOCK_RANGE: float = 180.0
+const MISSILE_LOCK_CONE_DEGREES: float = 8.0
 
 func setup(game_instance: Node3D) -> void:
     game = game_instance
@@ -50,7 +69,17 @@ func _ready() -> void:
     _build_collision()
     _build_visual()
     _build_cameras()
+    _build_first_person_cockpit()
+    _connect_settings()
     Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _connect_settings() -> void:
+    SettingsManager.field_of_view_changed.connect(_on_field_of_view_changed)
+    SettingsManager.mouse_sensitivity_changed.connect(_on_mouse_sensitivity_changed)
+    SettingsManager.mouse_invert_y_changed.connect(_on_mouse_invert_y_changed)
+    _on_field_of_view_changed(SettingsManager.field_of_view)
+    _on_mouse_sensitivity_changed(SettingsManager.mouse_sensitivity_x, SettingsManager.mouse_sensitivity_y)
+    _on_mouse_invert_y_changed(SettingsManager.mouse_invert_y)
 
 func _build_collision() -> void:
     var collision := CollisionShape3D.new()
@@ -149,6 +178,63 @@ func _build_cameras() -> void:
     _third_person_camera.current = false
     _body_visual.visible = false
 
+func _build_first_person_cockpit() -> void:
+    _cockpit_visual = Node3D.new()
+    _cockpit_visual.name = "CockpitInterior"
+    _first_person_camera.add_child(_cockpit_visual)
+
+    var armor_dark := Color(0.035, 0.075, 0.09)
+    var armor_mid := Color(0.08, 0.22, 0.25)
+    var armor_light := Color(0.18, 0.48, 0.48)
+    var hazard := Color(0.96, 0.30, 0.06)
+    var display_blue := Color(0.10, 0.76, 0.88)
+
+    # Keep the cockpit framing at the edges so the center remains clear for aiming.
+    _visual_box(_cockpit_visual, Vector3(-1.38, 0.18, -2.15), Vector3(0.18, 1.75, 0.22), armor_mid)
+    _visual_box(_cockpit_visual, Vector3(1.38, 0.18, -2.15), Vector3(0.18, 1.75, 0.22), armor_mid)
+    _visual_box(_cockpit_visual, Vector3(0.0, 0.86, -2.15), Vector3(2.75, 0.16, 0.22), armor_dark)
+    _visual_box(_cockpit_visual, Vector3(0.0, -0.73, -1.75), Vector3(2.65, 0.20, 0.30), armor_dark)
+    _visual_box(_cockpit_visual, Vector3(-1.08, -0.57, -1.45), Vector3(0.36, 0.46, 0.58), armor_light)
+    _visual_box(_cockpit_visual, Vector3(1.08, -0.57, -1.45), Vector3(0.36, 0.46, 0.58), armor_light)
+    _visual_box(_cockpit_visual, Vector3(0.0, -0.68, -1.42), Vector3(1.28, 0.16, 0.52), armor_mid)
+    _visual_box(_cockpit_visual, Vector3(-0.72, 0.56, -2.05), Vector3(0.48, 0.08, 0.08), hazard, 2.4)
+    _visual_box(_cockpit_visual, Vector3(0.72, 0.56, -2.05), Vector3(0.48, 0.08, 0.08), hazard, 2.4)
+    _visual_box(_cockpit_visual, Vector3(-0.42, -0.62, -1.68), Vector3(0.20, 0.035, 0.24), display_blue, 3.0)
+    _visual_box(_cockpit_visual, Vector3(0.42, -0.62, -1.68), Vector3(0.20, 0.035, 0.24), display_blue, 3.0)
+
+    _first_person_weapon_visual = Node3D.new()
+    _first_person_weapon_visual.name = "FirstPersonWeapons"
+    _first_person_camera.add_child(_first_person_weapon_visual)
+
+    # Machine gun stays low on the right; the rocket pod sits low on the left.
+    _visual_box(_first_person_weapon_visual, Vector3(0.82, -0.49, -1.20), Vector3(0.32, 0.34, 0.76), armor_mid)
+    _visual_box(_first_person_weapon_visual, Vector3(0.82, -0.46, -1.76), Vector3(0.18, 0.18, 0.72), armor_dark)
+    _visual_box(_first_person_weapon_visual, Vector3(0.82, -0.46, -2.18), Vector3(0.08, 0.08, 0.28), hazard, 4.0)
+    _visual_box(_first_person_weapon_visual, Vector3(0.62, -0.30, -1.02), Vector3(0.12, 0.22, 0.40), armor_light)
+    _visual_box(_first_person_weapon_visual, Vector3(1.02, -0.30, -1.02), Vector3(0.12, 0.22, 0.40), armor_light)
+    _visual_box(_first_person_weapon_visual, Vector3(-0.80, -0.50, -1.18), Vector3(0.50, 0.36, 0.70), armor_mid)
+    _visual_box(_first_person_weapon_visual, Vector3(-0.96, -0.50, -1.72), Vector3(0.18, 0.18, 0.78), armor_dark)
+    _visual_box(_first_person_weapon_visual, Vector3(-0.64, -0.50, -1.72), Vector3(0.18, 0.18, 0.78), armor_dark)
+    _visual_box(_first_person_weapon_visual, Vector3(-0.96, -0.50, -2.18), Vector3(0.10, 0.10, 0.26), hazard, 4.0)
+    _visual_box(_first_person_weapon_visual, Vector3(-0.64, -0.50, -2.18), Vector3(0.10, 0.10, 0.26), hazard, 4.0)
+
+    _cockpit_visual.visible = first_person
+    _first_person_weapon_visual.visible = first_person
+
+    _missile_port_visual = Node3D.new()
+    _missile_port_visual.name = "MissilePort"
+    _first_person_camera.add_child(_missile_port_visual)
+    _visual_box(_missile_port_visual, Vector3(-1.05, -0.34, -1.28), Vector3(1.18, 0.18, 0.78), armor_dark)
+    _visual_box(_missile_port_visual, Vector3(-1.05, -0.58, -1.32), Vector3(1.18, 0.16, 0.72), armor_mid)
+    for row in range(2):
+        for column in range(4):
+            var tube_x := -1.47 + float(column) * 0.28
+            var tube_y := -0.34 + float(row) * 0.26
+            _visual_box(_missile_port_visual, Vector3(tube_x, tube_y, -1.78), Vector3(0.18, 0.18, 0.52), Color(0.025, 0.05, 0.06))
+            _visual_box(_missile_port_visual, Vector3(tube_x, tube_y, -2.07), Vector3(0.08, 0.08, 0.08), hazard, 4.0)
+    _missile_port_visual.visible = false
+    _refresh_first_person_weapon_visuals()
+
 func _process(delta: float) -> void:
     _machinegun_cooldown = maxf(_machinegun_cooldown - delta, 0.0)
     _rocket_cooldown = maxf(_rocket_cooldown - delta, 0.0)
@@ -157,14 +243,26 @@ func _process(delta: float) -> void:
         if is_zero_approx(_reload_timer):
             _finish_reload()
 
+    if Input.is_action_just_pressed("weapon_machinegun") or Input.is_action_just_pressed("weapon_rocket"):
+        _select_weapon(WeaponMode.DUAL_HANDS)
+    elif Input.is_action_just_pressed("weapon_missile"):
+        _select_weapon(WeaponMode.MISSILE_POD)
+
+    _update_missile_lock()
     if Input.is_action_just_pressed("toggle_view"):
         toggle_view()
     if Input.is_action_just_pressed("reload"):
         _start_reload()
-    if Input.is_action_pressed("fire_machinegun"):
-        _fire_machinegun()
-    if Input.is_action_just_pressed("fire_rocket"):
-        _fire_rocket()
+    if current_weapon == WeaponMode.MISSILE_POD:
+        if Input.is_action_just_pressed("fire_left_weapon"):
+            _fire_guided_missile_salvo()
+        if Input.is_action_just_pressed("fire_right_weapon"):
+            _fire_direct_missile_salvo()
+    else:
+        if Input.is_action_just_pressed("fire_left_weapon"):
+            _fire_rocket()
+        if Input.is_action_pressed("fire_right_weapon"):
+            _fire_machinegun()
 
 func _physics_process(delta: float) -> void:
     var forward_input := Input.get_axis("move_back", "move_forward")
@@ -192,21 +290,32 @@ func _physics_process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
     if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-        yaw -= event.relative.x * 0.0025
-        pitch = clampf(pitch - event.relative.y * 0.0022, -1.05, 0.72)
-    elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
-        if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-            Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-        else:
-            Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+        yaw -= event.relative.x * mouse_sensitivity_x
+        var vertical_sign := 1.0 if mouse_invert_y else -1.0
+        pitch = clampf(pitch + event.relative.y * mouse_sensitivity_y * vertical_sign, -1.05, 0.72)
     elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
         Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _on_field_of_view_changed(value: float) -> void:
+    if _first_person_camera != null:
+        _first_person_camera.fov = value
+    if _third_person_camera != null:
+        _third_person_camera.fov = value
+
+func _on_mouse_sensitivity_changed(value_x: float, value_y: float) -> void:
+    mouse_sensitivity_x = value_x
+    mouse_sensitivity_y = value_y
+
+func _on_mouse_invert_y_changed(enabled: bool) -> void:
+    mouse_invert_y = enabled
 
 func toggle_view() -> void:
     first_person = not first_person
     _first_person_camera.current = first_person
     _third_person_camera.current = not first_person
     _body_visual.visible = not first_person
+    _cockpit_visual.visible = first_person
+    _refresh_first_person_weapon_visuals()
     view_mode_changed.emit(first_person)
     announcement.emit("CAMERA LINK // " + ("FIRST PERSON" if first_person else "THIRD PERSON"))
 
@@ -272,6 +381,83 @@ func _fire_rocket() -> void:
         game.call("spawn_player_rocket", ray_origin + ray_direction * 1.2, ray_direction, self)
     stats_changed.emit()
 
+func _fire_guided_missile_salvo() -> void:
+    if not is_instance_valid(_missile_lock_target):
+        announcement.emit("MISSILE PORT // NO LOCK // LEFT HAND DISABLED")
+        return
+    _launch_missile_salvo(_missile_lock_target, "LOCKED SALVO")
+
+func _fire_direct_missile_salvo() -> void:
+    _launch_missile_salvo(null, "AIM POINT SALVO")
+
+func _launch_missile_salvo(lock_target: Node3D, fire_mode: String) -> void:
+    if missile_salvo_count <= 0:
+        announcement.emit("MISSILE PORT // EMPTY")
+        return
+    missile_salvo_count -= 1
+    var aim := _get_aim_ray()
+    var ray_origin: Vector3 = aim["origin"]
+    var ray_direction: Vector3 = aim["direction"]
+    if game != null and game.has_method("spawn_player_missile_salvo"):
+        game.call("spawn_player_missile_salvo", ray_origin + ray_direction * 1.4, ray_direction, self, lock_target)
+    announcement.emit("MISSILE PORT // 8X " + fire_mode)
+    stats_changed.emit()
+
+func _select_weapon(mode: int) -> void:
+    current_weapon = mode as WeaponMode
+    if current_weapon != WeaponMode.MISSILE_POD:
+        _missile_lock_target = null
+    _refresh_first_person_weapon_visuals()
+    announcement.emit("WEAPON SELECTED // " + get_weapon_display_name())
+
+func _refresh_first_person_weapon_visuals() -> void:
+    if _first_person_weapon_visual != null:
+        _first_person_weapon_visual.visible = first_person and current_weapon != WeaponMode.MISSILE_POD
+    if _missile_port_visual != null:
+        _missile_port_visual.visible = first_person and current_weapon == WeaponMode.MISSILE_POD
+
+func _update_missile_lock() -> void:
+    if current_weapon != WeaponMode.MISSILE_POD:
+        _missile_lock_target = null
+        return
+
+    var aim := _get_aim_ray()
+    var ray_origin: Vector3 = aim["origin"]
+    var ray_direction: Vector3 = aim["direction"]
+    var lock_cosine := cos(deg_to_rad(MISSILE_LOCK_CONE_DEGREES))
+    var best_score := INF
+    var best_target: Node3D = null
+
+    for candidate_variant in get_tree().get_nodes_in_group("enemy_mechs"):
+        var candidate := candidate_variant as Node3D
+        if candidate == null or not is_instance_valid(candidate):
+            continue
+        var target_position := candidate.global_position + Vector3(0.0, 2.2, 0.0)
+        var distance := ray_origin.distance_to(target_position)
+        if distance > MISSILE_LOCK_RANGE:
+            continue
+        var target_direction := ray_origin.direction_to(target_position)
+        var alignment := ray_direction.dot(target_direction)
+        if alignment < lock_cosine:
+            continue
+        var hit := _raycast(ray_origin, target_position)
+        if hit.is_empty():
+            continue
+        var hit_target := _find_damage_target(hit.get("collider") as Node)
+        if hit_target != candidate:
+            continue
+        var score := (1.0 - alignment) * 100.0 + distance * 0.01
+        if score < best_score:
+            best_score = score
+            best_target = candidate
+    if best_target != null:
+        _missile_lock_target = best_target
+    elif not _is_valid_missile_target(_missile_lock_target):
+        _missile_lock_target = null
+
+func _is_valid_missile_target(candidate: Node3D) -> bool:
+    return candidate != null and is_instance_valid(candidate) and candidate.is_in_group("enemy_mechs")
+
 func _start_reload() -> void:
     if _reload_timer > 0.0 or machinegun_ammo >= machinegun_magazine_size or machinegun_reserve <= 0:
         return
@@ -285,6 +471,45 @@ func _finish_reload() -> void:
     machinegun_reserve -= loaded
     announcement.emit("MACHINE GUN // READY")
     stats_changed.emit()
+
+func get_speed_mps() -> float:
+    return Vector2(velocity.x, velocity.z).length()
+
+func is_boosting() -> bool:
+    return Input.is_action_pressed("boost") and get_speed_mps() > 0.1
+
+func get_weapon_status() -> String:
+    match current_weapon:
+        WeaponMode.DUAL_HANDS:
+            var machinegun_status := "RELOADING" if _reload_timer > 0.0 else "READY"
+            if machinegun_ammo <= 0 and machinegun_reserve <= 0:
+                machinegun_status = "EMPTY"
+            var rocket_status := "READY" if _rocket_cooldown <= 0.0 else "COOLDOWN"
+            if rocket_ammo <= 0:
+                rocket_status = "EMPTY"
+            return "L ROCKET %s // R MG %s" % [rocket_status, machinegun_status]
+        WeaponMode.MISSILE_POD:
+            var missile_status := "READY" if missile_salvo_count > 0 else "EMPTY"
+            return "8X MISSILE SALVO %02d // %s" % [missile_salvo_count, missile_status]
+    return "UNKNOWN"
+
+func get_weapon_display_name() -> String:
+    match current_weapon:
+        WeaponMode.DUAL_HANDS:
+            return "DUAL HAND WEAPONS"
+        WeaponMode.MISSILE_POD:
+            return "MISSILE PORT"
+    return "UNKNOWN"
+
+func is_missile_pod_selected() -> bool:
+    return current_weapon == WeaponMode.MISSILE_POD
+
+func get_missile_lock_ui() -> String:
+    if current_weapon != WeaponMode.MISSILE_POD:
+        return ""
+    if is_instance_valid(_missile_lock_target):
+        return "MISSILE LOCK // %s // 8X HOMING" % _missile_lock_target.name
+    return "MISSILE LOCK // NO TARGET // AIM POINT FIRE"
 
 func take_damage(amount: float, _hit_position: Vector3 = Vector3.ZERO) -> void:
     health = maxf(health - amount, 0.0)
