@@ -55,6 +55,14 @@ var _machinegun_cooldown: float = 0.0
 var _rocket_cooldown: float = 0.0
 var _reload_timer: float = 0.0
 var _missile_lock_target: Node3D
+var _base_health_max: float
+var _base_move_speed: float
+var _base_boost_multiplier: float
+var _base_machinegun_damage: float
+var _base_machinegun_fire_interval: float
+var _base_rocket_damage: float
+var _base_rocket_explosion_radius: float
+var _base_missile_damage: float
 const MISSILE_LOCK_RANGE: float = 180.0
 const MISSILE_LOCK_CONE_DEGREES: float = 8.0
 
@@ -70,8 +78,26 @@ func _ready() -> void:
     _build_visual()
     _build_cameras()
     _build_first_person_cockpit()
+    _cache_base_stats()
     _connect_settings()
+    _connect_upgrade_manager()
     Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _cache_base_stats() -> void:
+    _base_health_max = health_max
+    _base_move_speed = move_speed
+    _base_boost_multiplier = boost_multiplier
+    _base_machinegun_damage = machinegun_damage
+    _base_machinegun_fire_interval = machinegun_fire_interval
+    _base_rocket_damage = rocket_damage
+    _base_rocket_explosion_radius = rocket_explosion_radius
+    _base_missile_damage = missile_damage
+
+func _connect_upgrade_manager() -> void:
+    UpgradeManager.profile_changed.connect(_apply_upgrade_profile)
+    UpgradeManager.weapon_group_changed.connect(_on_weapon_group_changed)
+    UpgradeManager.mech_tuning_changed.connect(_on_mech_tuning_changed)
+    _apply_upgrade_profile()
 
 func _connect_settings() -> void:
     SettingsManager.field_of_view_changed.connect(_on_field_of_view_changed)
@@ -260,9 +286,9 @@ func _process(delta: float) -> void:
             _fire_direct_missile_salvo()
     else:
         if Input.is_action_just_pressed("fire_left_weapon"):
-            _fire_rocket()
+            _fire_left_hand_weapon()
         if Input.is_action_pressed("fire_right_weapon"):
-            _fire_machinegun()
+            _fire_right_hand_weapon()
 
 func _physics_process(delta: float) -> void:
     var forward_input := Input.get_axis("move_back", "move_forward")
@@ -378,7 +404,7 @@ func _fire_rocket() -> void:
     var ray_origin: Vector3 = aim["origin"]
     var ray_direction: Vector3 = aim["direction"]
     if game != null and game.has_method("spawn_player_rocket"):
-        game.call("spawn_player_rocket", ray_origin + ray_direction * 1.2, ray_direction, self)
+        game.call("spawn_player_rocket", ray_origin + ray_direction * 1.2, ray_direction, self, rocket_damage, rocket_explosion_radius)
     stats_changed.emit()
 
 func _fire_guided_missile_salvo() -> void:
@@ -399,7 +425,7 @@ func _launch_missile_salvo(lock_target: Node3D, fire_mode: String) -> void:
     var ray_origin: Vector3 = aim["origin"]
     var ray_direction: Vector3 = aim["direction"]
     if game != null and game.has_method("spawn_player_missile_salvo"):
-        game.call("spawn_player_missile_salvo", ray_origin + ray_direction * 1.4, ray_direction, self, lock_target)
+        game.call("spawn_player_missile_salvo", ray_origin + ray_direction * 1.4, ray_direction, self, lock_target, missile_damage, missile_explosion_radius)
     announcement.emit("MISSILE PORT // 8X " + fire_mode)
     stats_changed.emit()
 
@@ -413,8 +439,47 @@ func _select_weapon(mode: int) -> void:
 func _refresh_first_person_weapon_visuals() -> void:
     if _first_person_weapon_visual != null:
         _first_person_weapon_visual.visible = first_person and current_weapon != WeaponMode.MISSILE_POD
+        _first_person_weapon_visual.scale.x = -1.0 if UpgradeManager.weapon_group == &"support" else 1.0
     if _missile_port_visual != null:
         _missile_port_visual.visible = first_person and current_weapon == WeaponMode.MISSILE_POD
+
+func _apply_upgrade_profile() -> void:
+    if _base_health_max <= 0.0:
+        return
+    var armor_level := UpgradeManager.get_upgrade_level(&"armor")
+    var mobility_level := UpgradeManager.get_upgrade_level(&"mobility")
+    var machinegun_level := UpgradeManager.get_upgrade_level(&"machinegun")
+    var rocket_level := UpgradeManager.get_upgrade_level(&"rocket")
+    var missile_level := UpgradeManager.get_upgrade_level(&"missile")
+
+    health_max = _base_health_max + float(armor_level * 100)
+    move_speed = _base_move_speed + float(mobility_level) * 0.4
+    boost_multiplier = _base_boost_multiplier
+    machinegun_damage = _base_machinegun_damage + float(machinegun_level * 4)
+    machinegun_fire_interval = maxf(_base_machinegun_fire_interval - float(machinegun_level) * 0.006, 0.045)
+    rocket_damage = _base_rocket_damage + float(rocket_level * 15)
+    rocket_explosion_radius = _base_rocket_explosion_radius + float(rocket_level) * 0.25
+    missile_damage = _base_missile_damage + float(missile_level * 8)
+
+    match UpgradeManager.mech_tuning:
+        &"heavy":
+            health_max += 100.0
+            move_speed -= 1.0
+        &"mobile":
+            health_max -= 50.0
+            move_speed += 1.2
+            boost_multiplier += 0.12
+    health = minf(health, health_max)
+    _refresh_first_person_weapon_visuals()
+    stats_changed.emit()
+
+func _on_weapon_group_changed(_group_id: StringName) -> void:
+    _refresh_first_person_weapon_visuals()
+    announcement.emit("WEAPON GROUP // " + UpgradeManager.get_weapon_group_name())
+
+func _on_mech_tuning_changed(_tuning_id: StringName) -> void:
+    _apply_upgrade_profile()
+    announcement.emit("MECH FRAME // " + UpgradeManager.get_mech_tuning_name())
 
 func _update_missile_lock() -> void:
     if current_weapon != WeaponMode.MISSILE_POD:
@@ -472,6 +537,18 @@ func _finish_reload() -> void:
     announcement.emit("MACHINE GUN // READY")
     stats_changed.emit()
 
+func _fire_left_hand_weapon() -> void:
+    if UpgradeManager.weapon_group == &"support":
+        _fire_machinegun()
+    else:
+        _fire_rocket()
+
+func _fire_right_hand_weapon() -> void:
+    if UpgradeManager.weapon_group == &"support":
+        _fire_rocket()
+    else:
+        _fire_machinegun()
+
 func get_speed_mps() -> float:
     return Vector2(velocity.x, velocity.z).length()
 
@@ -488,6 +565,9 @@ func get_weapon_status() -> String:
             if rocket_ammo <= 0:
                 rocket_status = "EMPTY"
             return "L ROCKET %s // R MG %s" % [rocket_status, machinegun_status]
+            if UpgradeManager.weapon_group == &"support":
+                return "L MG %s // R ROCKET %s" % [machinegun_status, rocket_status]
+            return "L ROCKET %s // R MG %s" % [rocket_status, machinegun_status]
         WeaponMode.MISSILE_POD:
             var missile_status := "READY" if missile_salvo_count > 0 else "EMPTY"
             return "8X MISSILE SALVO %02d // %s" % [missile_salvo_count, missile_status]
@@ -497,6 +577,12 @@ func get_weapon_display_name() -> String:
     match current_weapon:
         WeaponMode.DUAL_HANDS:
             return "DUAL HAND WEAPONS"
+            return UpgradeManager.get_weapon_group_name()
+
+        func repair_full() -> void:
+            health = health_max
+            announcement.emit("REPAIR BOT // ARMOR RESTORED")
+            stats_changed.emit()
         WeaponMode.MISSILE_POD:
             return "MISSILE PORT"
     return "UNKNOWN"

@@ -13,6 +13,8 @@ The current scenario takes place in a neon Mong Kok-inspired street approach. Th
 - Neon signs, hawker stalls, streetlights, overhead utility wires, and a raised footbridge.
 - A combat route populated by hostile mechs that move toward the player and fire when they are in range.
 
+The player starts inside the HK-05 Titan Home Base, a procedural launch hangar at the edge of the street. The base includes a marked mech spawn pad, pilot-link and armory consoles, neon launch-bay lighting, a covered roof, and an open gate facing the combat route.
+
 The player starts in the HK-05 Titan mech. The first wave contains four enemies. Once a wave is cleared, another wave arrives after a short delay. Later waves add more enemies to the encounter.
 
 ## Main Features
@@ -29,6 +31,7 @@ The player starts in the HK-05 Titan mech. The first wave contains four enemies.
 - Hostile NPC mechs with pursuit, line-of-sight shooting, health, and destruction effects.
 - Wave spawning, kill tracking, combat announcements, and a code-generated HUD.
 - Reference-inspired settings menu with display, audio, controls, and gameplay pages.
+- Interactive repair bot inside the home base with persistent upgrades, weapon-group changes, frame tuning, and full repair.
 - Compatible with the Godot 4.7 project format.
 - No mandatory imported models, textures, sounds, or plugins.
 
@@ -55,6 +58,7 @@ The world is assembled by scripts when the main scene starts. There is no separa
 | `1` | Return to dual-hand weapons. |
 | `2` | Return to dual-hand weapons. |
 | `3` | Enter missile-port mode and temporarily disable both hand weapons. |
+| `E` | Talk to the repair bot when standing inside the home base. |
 | `V` | Switch between first-person and third-person view. |
 | `Esc` | Open or close the settings menu and pause the game. |
 
@@ -67,6 +71,19 @@ The world is assembled by scripts when the main scene starts. There is no separa
 | `R` | Reload the machine gun. |
 
 When the missile port is selected with `3`, both hand weapons are disabled. Press the right mouse button to launch eight missiles directly toward the current aim point. Press the left mouse button to launch eight homing missiles only when an enemy has been locked. The left-button salvo uses the last valid locked enemy; if there is no lock, it does not fire.
+
+In normal dual-hand mode, the default `STRIKE GROUP` maps the left mouse button to the direct-fire rocket launcher and the right mouse button to the machine gun. The repair bot can switch to `SUPPORT GROUP`, which swaps those left/right assignments.
+
+### Repair Bot Upgrade System
+
+Walk up to the service robot inside the home base and press `E`. The game pauses and opens a repair dialogue with four service paths:
+
+- `UPGRADE MECH`: spend credits on reinforced armor, servo actuators, machine-gun calibration, rocket payload, or missile guidance. Each upgrade has three levels and a rising cost.
+- `CHANGE WEAPON GROUP`: choose `STRIKE GROUP` or `SUPPORT GROUP` to change which weapon fires from each mouse button.
+- `ADJUST MECH FRAME`: choose `BALANCED FRAME`, `HEAVY FRAME`, or `MOBILE FRAME`. Heavy adds health but reduces speed; Mobile adds speed but reduces health.
+- `REPAIR TO FULL HEALTH`: restore the mech to its current maximum health before a sortie.
+
+The upgrade profile is saved to `user://mech_upgrade_profile.cfg`. Credits, upgrade levels, weapon group, and frame tuning remain available the next time the project runs.
 
 ### Movement Details
 
@@ -133,6 +150,10 @@ The chase camera follows the mech through a spring arm. The full procedural mech
 | `scenes/Main.tscn` | Minimal entry scene that loads the runtime game controller. |
 | `scripts/Main.gd` | Builds the world, lighting, player, enemy waves, projectiles, tracers, and explosion effects. |
 | `scripts/HongKongDistrict.gd` | Generates the Hong Kong-inspired street, buildings, props, signs, lights, and wires. |
+| `scripts/HomeBase.gd` | Generates the protected HK-05 launch hangar and player spawn area. |
+| `scripts/RepairBot.gd` | Generates the interactive service NPC and proximity prompt inside the home base. |
+| `scripts/RepairBotMenu.gd` | Creates the repair dialogue, upgrade shop, weapon-group selector, frame tuner, and repair action. |
+| `scripts/UpgradeManager.gd` | Persists credits, upgrade levels, weapon groups, and mech frame tuning. |
 | `scripts/MechPlayer.gd` | Controls player movement, cameras, view switching, weapons, reloads, armor, and aiming. |
 | `scripts/EnemyMech.gd` | Controls enemy movement, pursuit, line-of-sight attacks, health, and destruction. |
 | `scripts/RocketProjectile.gd` | Handles rocket travel, collision, detonation, and area damage. |

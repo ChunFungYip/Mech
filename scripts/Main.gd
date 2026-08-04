@@ -1,17 +1,23 @@
 extends Node3D
 
 const HongKongDistrictScript = preload("res://scripts/HongKongDistrict.gd")
+const HomeBaseScript = preload("res://scripts/HomeBase.gd")
 const MechPlayerScript = preload("res://scripts/MechPlayer.gd")
 const EnemyMechScript = preload("res://scripts/EnemyMech.gd")
 const RocketProjectileScript = preload("res://scripts/RocketProjectile.gd")
 const HomingMissileScript = preload("res://scripts/HomingMissile.gd")
 const GameHUDScript = preload("res://scripts/GameHUD.gd")
 const SettingsMenuScript = preload("res://scripts/SettingsMenu.gd")
+const RepairBotScript = preload("res://scripts/RepairBot.gd")
+const RepairBotMenuScript = preload("res://scripts/RepairBotMenu.gd")
 
 var player: Node3D
 var district: Node3D
+var home_base: Node3D
 var hud: CanvasLayer
 var settings_menu: CanvasLayer
+var repair_bot: Node3D
+var repair_bot_menu: CanvasLayer
 var wave: int = 1
 var kills: int = 0
 var _next_wave_timer: float = 0.0
@@ -23,10 +29,13 @@ func _ready() -> void:
     district.name = "MongKokDistrict"
     add_child(district)
     district.call("build", 2407)
+    _spawn_home_base()
     _spawn_player()
-    _spawn_wave()
     _spawn_hud()
     _spawn_settings_menu()
+    _spawn_repair_bot_menu()
+    _spawn_repair_bot()
+    _spawn_wave()
 
 func _build_environment() -> void:
     var world_environment := WorldEnvironment.new()
@@ -60,6 +69,12 @@ func _spawn_player() -> void:
     add_child(player)
     player.global_position = Vector3(0.0, 0.0, 36.0)
     player.call("setup", self)
+
+func _spawn_home_base() -> void:
+    home_base = HomeBaseScript.new()
+    home_base.name = "TitanHomeBase"
+    add_child(home_base)
+    home_base.call("build")
 
 func _spawn_wave() -> void:
     var spawn_positions: Array[Vector3] = [
@@ -106,20 +121,37 @@ func _spawn_settings_menu() -> void:
     settings_menu.name = "SettingsMenu"
     add_child(settings_menu)
 
+func _spawn_repair_bot_menu() -> void:
+    repair_bot_menu = RepairBotMenuScript.new()
+    repair_bot_menu.name = "RepairBotMenu"
+    add_child(repair_bot_menu)
+
+func _spawn_repair_bot() -> void:
+    repair_bot = RepairBotScript.new()
+    repair_bot.name = "RepairBot"
+    add_child(repair_bot)
+    repair_bot.global_position = Vector3(5.6, 0.0, 45.0)
+    repair_bot.call("setup", self, player)
+
+func open_repair_bot() -> void:
+    if repair_bot_menu != null and repair_bot_menu.has_method("open_menu"):
+        repair_bot_menu.call("open_menu", player)
+
 func get_enemy_count() -> int:
     return get_tree().get_nodes_in_group("enemy_mechs").size()
 
 func _on_enemy_died(_enemy: Node) -> void:
     kills += 1
+    UpgradeManager.add_credits(100)
     if hud != null and hud.has_method("_on_announcement"):
-        hud.call("_on_announcement", "HOSTILE DISABLED // CONFIRMED %02d" % kills)
+        hud.call("_on_announcement", "HOSTILE DISABLED // CONFIRMED %02d // +100 CREDITS" % kills)
 
-func spawn_player_rocket(origin: Vector3, direction: Vector3, shooter: Node) -> void:
+func spawn_player_rocket(origin: Vector3, direction: Vector3, shooter: Node, damage: float = 110.0, explosion_radius: float = 5.0) -> void:
     var rocket: Node3D = RocketProjectileScript.new()
     add_child(rocket)
-    rocket.call("setup", self, shooter, origin, direction, &"enemy_mechs")
+    rocket.call("setup", self, shooter, origin, direction, &"enemy_mechs", damage, explosion_radius)
 
-func spawn_player_missile_salvo(origin: Vector3, direction: Vector3, shooter: Node, target: Node3D) -> void:
+func spawn_player_missile_salvo(origin: Vector3, direction: Vector3, shooter: Node, target: Node3D, damage: float = 46.0, explosion_radius: float = 2.8) -> void:
     var side := direction.cross(Vector3.UP).normalized()
     if side.length_squared() < 0.001:
         side = Vector3.RIGHT
@@ -139,7 +171,7 @@ func spawn_player_missile_salvo(origin: Vector3, direction: Vector3, shooter: No
         add_child(missile)
         var launch_position := origin + side * offset.x + up * offset.y
         var launch_direction := (direction + side * offset.x * 0.045 + up * offset.y * 0.045).normalized()
-        missile.call("setup", self, shooter, launch_position, launch_direction, target)
+        missile.call("setup", self, shooter, launch_position, launch_direction, target, damage, explosion_radius)
 
 func spawn_tracer(start: Vector3, finish: Vector3, color: Color) -> void:
     var difference := finish - start

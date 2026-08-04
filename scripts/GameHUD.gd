@@ -84,7 +84,7 @@ func _build_ui() -> void:
     _missile_lock_label.visible = false
 
     _panel(root, Vector2(24.0, 642.0), Vector2(580.0, 52.0), Color(0.018, 0.035, 0.05, 0.78))
-    _label(root, "WASD MOVE   SHIFT BOOST   LMB L-WEAPON   RMB R-WEAPON   3 MISSILES   ESC MENU", Vector2(42.0, 658.0), Vector2(550.0, 24.0), 10, Color(0.72, 0.78, 0.78))
+    _label(root, "WASD MOVE   SHIFT BOOST   LMB L-WEAPON   RMB R-WEAPON   E TALK   3 MISSILES", Vector2(42.0, 658.0), Vector2(550.0, 24.0), 9, Color(0.72, 0.78, 0.78))
 
     _panel(root, Vector2(690.0, 642.0), Vector2(566.0, 52.0), Color(0.018, 0.035, 0.05, 0.78))
     _label(root, "MONG KOK DISTRICT // 5 M PLATFORM // HOSTILES ARE LIVE", Vector2(708.0, 658.0), Vector2(530.0, 24.0), 11, Color(0.92, 0.52, 0.35))

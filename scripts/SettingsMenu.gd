@@ -131,6 +131,7 @@ func _build_controls_page() -> void:
     _add_info_row(page, "R", "Reload machine gun")
     _add_info_row(page, "1 / 2", "Return to dual-hand weapons")
     _add_info_row(page, "3", "Missile port: LMB lock / RMB direct")
+    _add_info_row(page, "E", "Talk to repair bot in home base")
     _add_info_row(page, "V", "Switch first / third person")
     _add_info_row(page, "ESC", "Open or close settings")
     _add_hint(page, "Key rebinding can be added here as the control set grows.")
@@ -313,5 +314,10 @@ func toggle_menu() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
     if event.is_action_pressed("pause_menu"):
+        for repair_menu in get_tree().get_nodes_in_group("repair_bot_menu"):
+            if repair_menu.has_method("is_open") and bool(repair_menu.call("is_open")):
+                repair_menu.call("close_menu")
+                get_viewport().set_input_as_handled()
+                return
         toggle_menu()
         get_viewport().set_input_as_handled()

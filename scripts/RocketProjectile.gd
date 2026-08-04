@@ -11,12 +11,14 @@ var explosion_radius: float = 5.0
 var lifetime: float = 7.0
 var _detonated: bool = false
 
-func setup(game_instance: Node3D, shooter_instance: Node, start: Vector3, heading: Vector3, group_name: StringName) -> void:
+func setup(game_instance: Node3D, shooter_instance: Node, start: Vector3, heading: Vector3, group_name: StringName, damage_amount: float = 110.0, explosion_radius_amount: float = 5.0) -> void:
     game = game_instance
     shooter = shooter_instance
     global_position = start
     direction = heading.normalized()
     target_group = group_name
+    damage = damage_amount
+    explosion_radius = explosion_radius_amount
 
 func _ready() -> void:
     var mesh_instance := MeshInstance3D.new()
