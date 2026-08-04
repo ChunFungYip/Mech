@@ -564,7 +564,6 @@ func get_weapon_status() -> String:
             var rocket_status := "READY" if _rocket_cooldown <= 0.0 else "COOLDOWN"
             if rocket_ammo <= 0:
                 rocket_status = "EMPTY"
-            return "L ROCKET %s // R MG %s" % [rocket_status, machinegun_status]
             if UpgradeManager.weapon_group == &"support":
                 return "L MG %s // R ROCKET %s" % [machinegun_status, rocket_status]
             return "L ROCKET %s // R MG %s" % [rocket_status, machinegun_status]
@@ -576,13 +575,7 @@ func get_weapon_status() -> String:
 func get_weapon_display_name() -> String:
     match current_weapon:
         WeaponMode.DUAL_HANDS:
-            return "DUAL HAND WEAPONS"
             return UpgradeManager.get_weapon_group_name()
-
-        func repair_full() -> void:
-            health = health_max
-            announcement.emit("REPAIR BOT // ARMOR RESTORED")
-            stats_changed.emit()
         WeaponMode.MISSILE_POD:
             return "MISSILE PORT"
     return "UNKNOWN"
@@ -596,6 +589,16 @@ func get_missile_lock_ui() -> String:
     if is_instance_valid(_missile_lock_target):
         return "MISSILE LOCK // %s // 8X HOMING" % _missile_lock_target.name
     return "MISSILE LOCK // NO TARGET // AIM POINT FIRE"
+
+func get_locked_enemy() -> Node3D:
+    if is_instance_valid(_missile_lock_target):
+        return _missile_lock_target
+    return null
+
+func repair_full() -> void:
+    health = health_max
+    announcement.emit("REPAIR BOT // ARMOR RESTORED")
+    stats_changed.emit()
 
 func take_damage(amount: float, _hit_position: Vector3 = Vector3.ZERO) -> void:
     health = maxf(health - amount, 0.0)

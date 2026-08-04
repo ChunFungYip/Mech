@@ -1,8 +1,8 @@
 # HonGong Mech // Neon Harbour
 
-HonGong Mech is a single-player mech first-person shooter prototype made with Godot 4.7. The player pilots a 5 m tall combat mech through a procedural Hong Kong-inspired night district and fights hostile NPC mechs using a machine gun and rockets.
+HonGong Mech is a single-player mech first-person shooter prototype made with Godot 4.7. The player pilots a 5 m tall combat mech through a procedural Hong Kong-inspired night district and fights hostile NPC mechs using a machine gun, direct-fire rockets, and an eight-missile salvo system.
 
-The prototype is designed as a compact playable foundation. It focuses on movement, camera switching, basic ranged combat, enemy waves, and a strong sense of place without requiring external art assets.
+The prototype is designed as a compact playable foundation. It focuses on movement, camera switching, dual-hand weapons, homing missiles, enemy component damage, enemy waves, a home-base repair and upgrade loop, and a strong sense of place without requiring external art assets.
 
 ## Game Overview
 
@@ -17,6 +17,10 @@ The player starts inside the HK-05 Titan Home Base, a procedural launch hangar a
 
 The player starts in the HK-05 Titan mech. The first wave contains four enemies. Once a wave is cleared, another wave arrives after a short delay. Later waves add more enemies to the encounter.
 
+Enemy kills award credits, which can be spent at the repair bot before the next sortie. The current prototype has no separate campaign map or mission selection; the home base and street are part of one runtime combat scene.
+
+In addition to the opening fixed wave, each run places eight randomized ambush points along the main road. When the player approaches an untriggered point within `20 m`, it spawns between `1` and `5` enemy mechs. Each point is consumed after its first trigger, so the same location does not continuously respawn enemies.
+
 ## Main Features
 
 - Procedural 3D Hong Kong-inspired environment generated at runtime.
@@ -29,9 +33,12 @@ The player starts in the HK-05 Titan mech. The first wave contains four enemies.
 - Selectable missile port that launches an eight-missile homing salvo when a target is locked.
 - Unguided missile salvos that fly straight through the aim point when no target is locked.
 - Hostile NPC mechs with pursuit, line-of-sight shooting, health, and destruction effects.
+- MechWarrior-inspired enemy component damage with separate left arm, right arm, upper torso, lower torso, left leg, and right leg HP bars.
+- Randomized city ambush points that activate when the player approaches.
 - Wave spawning, kill tracking, combat announcements, and a code-generated HUD.
 - Reference-inspired settings menu with display, audio, controls, and gameplay pages.
 - Interactive repair bot inside the home base with persistent upgrades, weapon-group changes, frame tuning, and full repair.
+- Local persistence for settings and the mech upgrade profile.
 - Compatible with the Godot 4.7 project format.
 - No mandatory imported models, textures, sounds, or plugins.
 
@@ -55,8 +62,8 @@ The world is assembled by scripts when the main scene starts. There is no separa
 | `D` | Strafe right. |
 | `Shift` | Boost movement speed while held. |
 | Mouse movement | Rotate the mech's aim and camera. |
-| `1` | Return to dual-hand weapons. |
-| `2` | Return to dual-hand weapons. |
+| `1` | Return to dual-hand weapons using the current weapon group. |
+| `2` | Return to dual-hand weapons using the current weapon group. |
 | `3` | Enter missile-port mode and temporarily disable both hand weapons. |
 | `E` | Talk to the repair bot when standing inside the home base. |
 | `V` | Switch between first-person and third-person view. |
@@ -70,7 +77,7 @@ The world is assembled by scripts when the main scene starts. There is no separa
 | Right mouse button | Fire the right-hand machine gun. Hold to fire automatically. |
 | `R` | Reload the machine gun. |
 
-When the missile port is selected with `3`, both hand weapons are disabled. Press the right mouse button to launch eight missiles directly toward the current aim point. Press the left mouse button to launch eight homing missiles only when an enemy has been locked. The left-button salvo uses the last valid locked enemy; if there is no lock, it does not fire.
+When the missile port is selected with `3`, both hand weapons are disabled. The missile lock searches within `180 m` and an `8-degree` aim cone. Press the right mouse button to launch eight missiles directly toward the current aim point. Press the left mouse button to launch eight homing missiles only when an enemy has been locked. The left-button salvo uses the last valid locked enemy; if there is no lock, it does not fire. The lock is cleared when the target is destroyed or removed.
 
 In normal dual-hand mode, the default `STRIKE GROUP` maps the left mouse button to the direct-fire rocket launcher and the right mouse button to the machine gun. The repair bot can switch to `SUPPORT GROUP`, which swaps those left/right assignments.
 
@@ -83,7 +90,9 @@ Walk up to the service robot inside the home base and press `E`. The game pauses
 - `ADJUST MECH FRAME`: choose `BALANCED FRAME`, `HEAVY FRAME`, or `MOBILE FRAME`. Heavy adds health but reduces speed; Mobile adds speed but reduces health.
 - `REPAIR TO FULL HEALTH`: restore the mech to its current maximum health before a sortie.
 
-The upgrade profile is saved to `user://mech_upgrade_profile.cfg`. Credits, upgrade levels, weapon group, and frame tuning remain available the next time the project runs.
+The player starts with `1200` credits. Each enemy kill awards `100` credits. The upgrade profile is saved to `user://mech_upgrade_profile.cfg`. Credits, upgrade levels, weapon group, and frame tuning remain available the next time the project runs.
+
+Upgrade costs use a three-level progression. The base costs are `150` for armor, `130` for mobility, `140` for machine-gun calibration, `160` for rocket payload, and `180` for missile guidance; the next levels cost two and three times the base cost.
 
 ### Movement Details
 
@@ -102,17 +111,28 @@ The current movement system is intentionally simple and grounded:
 
 ### Player Mech
 
-- Maximum armor: `500`
+- Base maximum armor: `500`
 - Machine-gun magazine: `60` rounds
 - Machine-gun reserve: `240` rounds
 - Rocket magazine: `6` rockets
 - Rocket reserve: `12` rockets
+- Missile ammunition: `4` salvos, with `8` missiles per salvo
 - Machine-gun fire interval: approximately `0.085` seconds
 - Machine-gun reload time: approximately `1.8` seconds
 - Rocket cooldown: approximately `0.85` seconds
 - Rocket explosion radius: `5 m`
 
-When the player's armor reaches zero, the pilot link is reset and the mech returns to the starting position with full armor.
+The base health, movement, and weapon values can change through the repair bot. When the player's health reaches zero, the pilot link is reset and the mech returns to the home-base start position with full current maximum health.
+
+Upgrade effects are:
+
+- Reinforced Armor: `+100` maximum health per level.
+- Servo Actuators: `+0.4 m/s` movement speed per level.
+- Ballistic Calibration: `+4` machine-gun damage per level and a small fire-interval reduction.
+- Rocket Payload: `+15` rocket damage and `+0.25 m` explosion radius per level.
+- Missile Guidance: `+8` missile damage per level.
+
+Frame tuning adds another live modifier: `HEAVY FRAME` gives `+100` health and `-1.0 m/s` speed; `MOBILE FRAME` gives `+1.2 m/s` speed, `-50` health, and a small boost multiplier increase; `BALANCED FRAME` keeps the base values.
 
 ### Machine Gun
 
@@ -121,6 +141,10 @@ The machine gun uses a camera-centered ray to find its target. A hit applies imm
 ### Rockets
 
 Rockets travel through the world as visible projectiles. They detonate when they hit geometry, an enemy, or reach their lifetime limit. The explosion damages the direct target and nearby hostile mechs.
+
+### Missile Port
+
+The missile port is selected with `3` and replaces both hand weapons while active. Each right-click salvo fires eight unguided missiles toward the current camera aim point. Each left-click salvo requires a valid locked enemy and sends all eight missiles toward that target. The missile HUD shows the lock state and, when locked, displays six separate target component bars.
 
 ### Enemy Mechs
 
@@ -132,6 +156,21 @@ Enemy mechs use a simple combat loop:
 4. Take damage from machine-gun hits and rocket explosions.
 5. Spawn an explosion and leave the scene when destroyed.
 
+Enemy mechs use six independent damage pools:
+
+- Left arm: `70 HP`
+- Right arm: `70 HP`
+- Upper torso: `130 HP`
+- Lower torso: `130 HP`
+- Left leg: `90 HP`
+- Right leg: `90 HP`
+
+Hits are assigned from the impact position in the enemy mech's local space. The currently locked enemy displays all six component bars in the HUD. Destroyed arm and leg visuals are removed from the mech. Damaging either leg reduces the enemy's movement speed to `40%` of its normal speed. The enemy is destroyed only when both the upper torso and lower torso reach zero HP; destroying an arm or leg alone does not kill it.
+
+### Random City Encounters
+
+Random encounter points are generated by `Main.gd` inside the road corridor, away from the home base and the initial player spawn. Their positions are randomized on every run, with a minimum separation between points. A proximity check runs during gameplay; crossing within `20 m` triggers one encounter of `1` to `5` hostile mechs. The fixed wave system remains active alongside these one-shot city ambushes.
+
 ## Camera Modes
 
 ### First Person
@@ -141,6 +180,17 @@ The cockpit camera is the default view. A dedicated first-person rig shows the c
 ### Third Person
 
 The chase camera follows the mech through a spring arm. The full procedural mech body is visible, making this mode useful for checking movement, positioning, and the Hong Kong environment from outside the cockpit.
+
+## Settings and Persistence
+
+Press `Esc` during gameplay to open the settings menu. It pauses the combat scene and provides four pages:
+
+- `DISPLAY`: field of view and window mode.
+- `AUDIO`: master volume.
+- `CONTROLS`: the current movement, weapon, camera, reload, missile, and repair-bot bindings.
+- `GAMEPLAY`: mouse X/Y sensitivity and inverted vertical aim.
+
+Settings are saved to `user://mech_settings.cfg`. Upgrade data is stored separately in `user://mech_upgrade_profile.cfg`. There is currently no campaign save-slot system, inventory save, or mission progression save.
 
 ## Project Structure
 
@@ -178,7 +228,7 @@ This project uses patterns from the sibling `HonGong-ShootingRange` project:
 - There is no multiplayer or networking layer.
 - Enemy behavior is intentionally lightweight and does not yet use navigation meshes, cover tactics, squad coordination, or advanced pathfinding.
 - There are no imported character animations, sound effects, music, or authored 3D models yet.
-- There is no save system, mission selection, inventory, or upgrade system. Settings are saved locally, but there is no account-level progression.
+- There is no campaign save-slot system, mission selection, inventory, or account-level progression. Settings and the repair-bot upgrade profile are saved locally.
 - The movement system does not currently include jumping, crouching, melee, or aerial movement.
 
 ## Possible Next Steps
@@ -188,4 +238,5 @@ This project uses patterns from the sibling `HonGong-ShootingRange` project:
 - Add jump jets, dash movement, heat management, and mech stagger states.
 - Replace simple enemy pursuit with navigation, cover seeking, flanking, and squad behavior.
 - Add multiple Hong Kong districts, mission objectives, checkpoints, and extraction zones.
-- Add damage zones, armor upgrades, weapon variants, and a progression system.
+- Add distinct arm weapon failure, torso critical states, leg animations, and more detailed hit zones.
+- Add authored mech models, cockpit instruments, animation, audio, and visual damage effects.

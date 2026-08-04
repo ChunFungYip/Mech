@@ -20,8 +20,23 @@ var repair_bot: Node3D
 var repair_bot_menu: CanvasLayer
 var wave: int = 1
 var kills: int = 0
+var _spawn_rng := RandomNumberGenerator.new()
+var _city_spawn_points: Array[Vector3] = []
+var _city_spawn_triggered: Array[bool] = []
+var _enemy_spawn_serial: int = 0
+var _random_encounters_triggered: int = 0
 var _next_wave_timer: float = 0.0
 var _wave_clear_announced: bool = false
+
+const RANDOM_CITY_SPAWN_POINT_COUNT: int = 8
+const RANDOM_CITY_SPAWN_TRIGGER_DISTANCE: float = 20.0
+const RANDOM_CITY_SPAWN_MIN_ENEMIES: int = 1
+const RANDOM_CITY_SPAWN_MAX_ENEMIES: int = 5
+const RANDOM_CITY_SPAWN_MIN_SEPARATION: float = 16.0
+const RANDOM_CITY_SPAWN_X_MIN: float = -10.0
+const RANDOM_CITY_SPAWN_X_MAX: float = 10.0
+const RANDOM_CITY_SPAWN_Z_MIN: float = -56.0
+const RANDOM_CITY_SPAWN_Z_MAX: float = 16.0
 
 func _ready() -> void:
     _build_environment()
@@ -30,6 +45,7 @@ func _ready() -> void:
     add_child(district)
     district.call("build", 2407)
     _spawn_home_base()
+    _build_random_city_spawn_points()
     _spawn_player()
     _spawn_hud()
     _spawn_settings_menu()
@@ -87,16 +103,12 @@ func _spawn_wave() -> void:
         spawn_positions.append(Vector3(0.0, 0.0, -49.0))
     if wave >= 3:
         spawn_positions.append(Vector3(-6.0, 0.0, -6.0))
-    for index in spawn_positions.size():
-        var enemy: Node3D = EnemyMechScript.new()
-        enemy.name = "HostileMech_%02d_%02d" % [wave, index + 1]
-        add_child(enemy)
-        enemy.global_position = spawn_positions[index]
-        enemy.call("setup", self, player)
-        enemy.connect("died", Callable(self, "_on_enemy_died"))
+    for spawn_position in spawn_positions:
+        _spawn_enemy(spawn_position, "WAVE_%02d" % wave)
     _wave_clear_announced = false
 
 func _process(delta: float) -> void:
+    _check_random_city_spawn_points()
     if get_enemy_count() == 0:
         if not _wave_clear_announced:
             _wave_clear_announced = true
@@ -110,6 +122,61 @@ func _process(delta: float) -> void:
                 _spawn_wave()
                 if hud != null and hud.has_method("_on_announcement"):
                     hud.call("_on_announcement", "HOSTILE WAVE %02d // ENGAGE" % wave)
+
+func _build_random_city_spawn_points() -> void:
+    _spawn_rng.randomize()
+    _city_spawn_points.clear()
+    _city_spawn_triggered.clear()
+    var attempts := 0
+    while _city_spawn_points.size() < RANDOM_CITY_SPAWN_POINT_COUNT and attempts < 200:
+        attempts += 1
+        var candidate := Vector3(
+            _spawn_rng.randf_range(RANDOM_CITY_SPAWN_X_MIN, RANDOM_CITY_SPAWN_X_MAX),
+            0.0,
+            _spawn_rng.randf_range(RANDOM_CITY_SPAWN_Z_MIN, RANDOM_CITY_SPAWN_Z_MAX))
+        if candidate.distance_to(Vector3(0.0, 0.0, 36.0)) < 34.0:
+            continue
+        var separated := true
+        for existing_point in _city_spawn_points:
+            if candidate.distance_to(existing_point) < RANDOM_CITY_SPAWN_MIN_SEPARATION:
+                separated = false
+                break
+        if separated:
+            _city_spawn_points.append(candidate)
+            _city_spawn_triggered.append(false)
+
+func _check_random_city_spawn_points() -> void:
+    if not is_instance_valid(player):
+        return
+    for point_index in _city_spawn_points.size():
+        if _city_spawn_triggered[point_index]:
+            continue
+        if player.global_position.distance_to(_city_spawn_points[point_index]) > RANDOM_CITY_SPAWN_TRIGGER_DISTANCE:
+            continue
+        _city_spawn_triggered[point_index] = true
+        _spawn_random_city_encounter(point_index, _city_spawn_points[point_index])
+
+func _spawn_random_city_encounter(point_index: int, center: Vector3) -> void:
+    _random_encounters_triggered += 1
+    var enemy_count := _spawn_rng.randi_range(RANDOM_CITY_SPAWN_MIN_ENEMIES, RANDOM_CITY_SPAWN_MAX_ENEMIES)
+    for enemy_index in enemy_count:
+        var angle := _spawn_rng.randf_range(0.0, TAU)
+        var radius := _spawn_rng.randf_range(1.5, 4.0)
+        var spawn_position := center + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
+        spawn_position.x = clampf(spawn_position.x, RANDOM_CITY_SPAWN_X_MIN - 1.5, RANDOM_CITY_SPAWN_X_MAX + 1.5)
+        spawn_position.z = clampf(spawn_position.z, RANDOM_CITY_SPAWN_Z_MIN - 1.5, RANDOM_CITY_SPAWN_Z_MAX + 1.5)
+        _spawn_enemy(spawn_position, "AMBUSH_%02d" % _random_encounters_triggered)
+    if hud != null and hud.has_method("_on_announcement"):
+        hud.call("_on_announcement", "CITY AMBUSH // POINT %02d // %02d HOSTILES" % [_random_encounters_triggered, enemy_count])
+
+func _spawn_enemy(spawn_position: Vector3, encounter_name: String) -> void:
+    _enemy_spawn_serial += 1
+    var enemy: Node3D = EnemyMechScript.new()
+    enemy.name = "%s_%03d" % [encounter_name, _enemy_spawn_serial]
+    add_child(enemy)
+    enemy.global_position = spawn_position
+    enemy.call("setup", self, player)
+    enemy.connect("died", Callable(self, "_on_enemy_died"))
 
 func _spawn_hud() -> void:
     hud = GameHUDScript.new()
