@@ -5,9 +5,19 @@ const BASE_CENTER := Vector3(0.0, 0.0, 39.0)
 const BASE_WIDTH: float = 19.0
 const BASE_DEPTH: float = 25.0
 const BASE_HEIGHT: float = 10.5
+const HANGAR_DOOR_HEIGHT: float = 8.2
+const HANGAR_DOOR_OPEN_OFFSET: float = 9.0
+const HANGAR_DOOR_OPEN_DISTANCE: float = 6.0
+const HANGAR_DOOR_CLOSE_DISTANCE: float = 9.0
+
+var _hangar_door: AnimatableBody3D
+var _hangar_door_closed_y: float
+var _hangar_door_open: bool = false
+var _hangar_door_tween: Tween
 
 func build() -> void:
     _build_structure()
+    _build_hangar_door()
     _build_hangar_details()
     _build_spawn_pad()
     _build_lighting()
@@ -66,6 +76,16 @@ func _neon(position: Vector3, size: Vector3, color: Color, energy: float = 3.5) 
     light.shadow_enabled = false
     add_child(light)
 
+func _child_box(parent: Node3D, position: Vector3, size: Vector3, color: Color, emission_energy: float = 0.0) -> MeshInstance3D:
+    var mesh_instance := MeshInstance3D.new()
+    var mesh := BoxMesh.new()
+    mesh.size = size
+    mesh_instance.mesh = mesh
+    mesh_instance.position = position
+    mesh_instance.material_override = _material(color, emission_energy)
+    parent.add_child(mesh_instance)
+    return mesh_instance
+
 func _build_structure() -> void:
     var center_z := BASE_CENTER.z
     var side_x := BASE_WIDTH * 0.5
@@ -89,6 +109,54 @@ func _build_structure() -> void:
     _neon(Vector3(side_x - 0.34, 5.2, front_z + 0.4), Vector3(0.12, 5.6, 0.18), Color(1.0, 0.22, 0.08), 3.0)
     _neon(Vector3(0.0, BASE_HEIGHT - 0.35, front_z + 0.42), Vector3(BASE_WIDTH - 1.2, 0.18, 0.18), Color(1.0, 0.64, 0.12), 3.5)
     _label("HK-05 // PILOT HOME BASE", Vector3(0.0, BASE_HEIGHT - 0.7, front_z + 0.12), Color(1.0, 0.72, 0.24), 48)
+
+func _build_hangar_door() -> void:
+    var front_z := BASE_CENTER.z - BASE_DEPTH * 0.5
+    var door_width := BASE_WIDTH - 1.0
+    _hangar_door_closed_y = HANGAR_DOOR_HEIGHT * 0.5
+    _hangar_door = AnimatableBody3D.new()
+    _hangar_door.name = "UpwardHangarDoor"
+    _hangar_door.position = Vector3(0.0, _hangar_door_closed_y, front_z + 0.28)
+    add_child(_hangar_door)
+
+    var door_color := Color(0.045, 0.09, 0.11)
+    var door_trim := Color(0.14, 0.30, 0.32)
+    _child_box(_hangar_door, Vector3.ZERO, Vector3(door_width, HANGAR_DOOR_HEIGHT, 0.42), door_color)
+    _child_box(_hangar_door, Vector3(0.0, 0.0, -0.23), Vector3(door_width - 0.6, 0.16, 0.08), door_trim)
+    _child_box(_hangar_door, Vector3(0.0, -2.9, -0.23), Vector3(door_width - 0.6, 0.16, 0.08), door_trim)
+    for x in [-6.5, -3.25, 0.0, 3.25, 6.5]:
+        _child_box(_hangar_door, Vector3(x, 0.0, -0.24), Vector3(0.12, HANGAR_DOOR_HEIGHT - 0.4, 0.06), Color(0.10, 0.20, 0.22), 0.2)
+    _child_box(_hangar_door, Vector3(-door_width * 0.5 + 0.28, 0.0, -0.25), Vector3(0.12, HANGAR_DOOR_HEIGHT - 0.25, 0.08), Color(0.05, 0.60, 0.68), 2.5)
+    _child_box(_hangar_door, Vector3(door_width * 0.5 - 0.28, 0.0, -0.25), Vector3(0.12, HANGAR_DOOR_HEIGHT - 0.25, 0.08), Color(1.0, 0.26, 0.08), 2.5)
+
+    var collision := CollisionShape3D.new()
+    var shape := BoxShape3D.new()
+    shape.size = Vector3(door_width, HANGAR_DOOR_HEIGHT, 0.42)
+    collision.shape = shape
+    _hangar_door.add_child(collision)
+    _label("HANGAR DOOR // AUTO LIFT", Vector3(0.0, BASE_HEIGHT + 0.75, front_z - 0.15), Color(0.36, 0.86, 0.88), 30)
+
+func update_hangar_door(player_position: Vector3) -> void:
+    if _hangar_door == null:
+        return
+    var front_z := BASE_CENTER.z - BASE_DEPTH * 0.5
+    var distance_from_front := front_z - player_position.z
+    if not _hangar_door_open and distance_from_front >= -HANGAR_DOOR_OPEN_DISTANCE:
+        set_hangar_door_open(true)
+    elif _hangar_door_open and distance_from_front < -HANGAR_DOOR_CLOSE_DISTANCE:
+        set_hangar_door_open(false)
+
+func set_hangar_door_open(open: bool) -> void:
+    if _hangar_door == null or _hangar_door_open == open:
+        return
+    _hangar_door_open = open
+    if _hangar_door_tween != null and _hangar_door_tween.is_running():
+        _hangar_door_tween.kill()
+    var target_y := _hangar_door_closed_y + HANGAR_DOOR_OPEN_OFFSET if open else _hangar_door_closed_y
+    _hangar_door_tween = create_tween()
+    _hangar_door_tween.set_trans(Tween.TRANS_QUAD)
+    _hangar_door_tween.set_ease(Tween.EASE_IN_OUT)
+    _hangar_door_tween.tween_property(_hangar_door, "position:y", target_y, 1.0)
 
 func _build_hangar_details() -> void:
     var center_z := BASE_CENTER.z

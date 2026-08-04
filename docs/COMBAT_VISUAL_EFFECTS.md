@@ -102,6 +102,31 @@ The upper and lower torso are critical sections. The enemy is destroyed only aft
 
 Implementation: `scripts/EnemyMech.gd`.
 
+### Enemy Archetype Visuals
+
+Enemy visuals now communicate different combat roles:
+
+- The heavy mech uses the full bipedal silhouette.
+- The scout mech reuses the bipedal silhouette at a smaller scale to read as a fast light unit.
+- The flying drone uses a compact floating body, lateral arms, underside thrusters, emissive panels, and a hover animation.
+- The spider mech uses the ground body at a reduced scale and adds four leg pairs for eight visible legs.
+
+These archetypes are generated from the same runtime mesh helpers as the original enemy. Their different shapes are visual feedback for their movement profile: small and fast, aerial, or low spider-like ground movement.
+
+### Giant Boss Visuals
+
+The Central Market Siege Boss uses a separate giant procedural silhouette rather than the regular enemy body:
+
+- Oversized torso and shoulder armor.
+- Heavy arm-mounted weapon blocks.
+- Large lower legs and a rear power assembly.
+- Red reactor sphere and emissive warning strips.
+- Local red reactor light.
+- World-space `CENTRAL MARKET // SIEGE CLASS` label.
+- Large defeat explosion when its health reaches zero.
+
+The boss is dormant until the player enters its central-city area. The gameplay HUD adds a dedicated red boss-health panel while the player is inside that area.
+
 ### Mech Cockpit and Weapon Visuals
 
 The first-person camera includes a dedicated cockpit presentation instead of showing the full external mech body inside the camera.
@@ -135,6 +160,7 @@ The city and home base include:
 - Pilot-link and armory console displays.
 - Cockpit indicator lights.
 - Overhead wire silhouettes.
+- The home-base hangar door's animated neon edge strips.
 
 Implementation:
 
@@ -142,6 +168,8 @@ Implementation:
 - Home base: `scripts/HomeBase.gd`
 - Repair bot: `scripts/RepairBot.gd`
 - Player cockpit: `scripts/MechPlayer.gd`
+
+The hangar door is an `AnimatableBody3D` with a box collision shape. It slides upward through a one-second tween when the player approaches the front threshold, then slides down after the player retreats into the hangar.
 
 ### HUD Combat Feedback
 

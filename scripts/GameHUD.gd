@@ -9,6 +9,10 @@ var _missile_lock_label: Label
 var _target_part_panel: ColorRect
 var _target_part_title: Label
 var _target_part_rows: Dictionary = {}
+var _boss_panel: ColorRect
+var _boss_title: Label
+var _boss_health_bar: ProgressBar
+var _boss_value: Label
 var _wave_label: Label
 var _view_label: Label
 var _message_label: Label
@@ -86,6 +90,7 @@ func _build_ui() -> void:
     _missile_lock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     _missile_lock_label.visible = false
     _build_target_part_panel(root)
+    _build_boss_panel(root)
 
     _panel(root, Vector2(24.0, 642.0), Vector2(580.0, 52.0), Color(0.018, 0.035, 0.05, 0.78))
     _label(root, "WASD MOVE   SHIFT SPRINT   LMB L-WEAPON   RMB R-WEAPON   E TALK   3 MISSILES", Vector2(42.0, 658.0), Vector2(550.0, 24.0), 9, Color(0.72, 0.78, 0.78))
@@ -113,8 +118,20 @@ func _process(delta: float) -> void:
     _missile_lock_label.visible = missile_selected
     if missile_selected:
         _missile_lock_label.text = str(player.call("get_missile_lock_ui"))
+    var boss := game.call("get_boss") as Node
+    var show_boss_health := bool(game.call("is_boss_area_active")) and boss != null and is_instance_valid(boss) and not bool(boss.get("is_defeated"))
+    _boss_panel.visible = show_boss_health
+    if show_boss_health:
+        var boss_health := float(boss.get("health"))
+        var boss_health_max := float(boss.get("health_max"))
+        _boss_title.text = "SIEGE CLASS // CENTRAL MARKET"
+        _boss_health_bar.max_value = boss_health_max
+        _boss_health_bar.value = boss_health
+        _boss_value.text = "%04d / %04d" % [int(round(boss_health)), int(round(boss_health_max))]
+
     var locked_enemy := player.call("get_locked_enemy") as Node
-    var show_part_health := missile_selected and locked_enemy != null and is_instance_valid(locked_enemy) and locked_enemy.has_method("get_part_health_snapshot")
+    var locked_boss := locked_enemy != null and is_instance_valid(locked_enemy) and bool(locked_enemy.get("is_boss"))
+    var show_part_health := missile_selected and not locked_boss and locked_enemy != null and is_instance_valid(locked_enemy) and locked_enemy.has_method("get_part_health_snapshot")
     _target_part_panel.visible = show_part_health
     if show_part_health:
         _update_target_part_panel(locked_enemy)
@@ -178,6 +195,29 @@ func _build_target_part_panel(root: Control) -> void:
         var value_label := _label(_target_part_panel, "000/000", Vector2(286.0, row_y), Vector2(55.0, 22.0), 10, Color(0.70, 0.90, 0.90))
         value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
         _target_part_rows[part_id] = {"bar": bar, "value": value_label, "name": name_label}
+
+func _build_boss_panel(root: Control) -> void:
+    _boss_panel = ColorRect.new()
+    _boss_panel.position = Vector2(420.0, 104.0)
+    _boss_panel.size = Vector2(440.0, 72.0)
+    _boss_panel.color = Color(0.10, 0.018, 0.025, 0.94)
+    _boss_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _boss_panel.visible = false
+    root.add_child(_boss_panel)
+
+    _boss_title = _label(_boss_panel, "SIEGE CLASS // CENTRAL MARKET", Vector2(14.0, 8.0), Vector2(310.0, 20.0), 13, Color(1.0, 0.42, 0.18))
+    _boss_value = _label(_boss_panel, "2400 / 2400", Vector2(326.0, 8.0), Vector2(98.0, 20.0), 12, Color(1.0, 0.78, 0.38))
+    _boss_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+    _boss_health_bar = ProgressBar.new()
+    _boss_health_bar.position = Vector2(14.0, 37.0)
+    _boss_health_bar.size = Vector2(412.0, 22.0)
+    _boss_health_bar.max_value = 2400.0
+    _boss_health_bar.value = 2400.0
+    _boss_health_bar.show_percentage = false
+    _boss_health_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _boss_health_bar.add_theme_stylebox_override("background", _make_bar_style(Color(0.16, 0.06, 0.07)))
+    _boss_health_bar.add_theme_stylebox_override("fill", _make_bar_style(Color(0.92, 0.10, 0.08)))
+    _boss_panel.add_child(_boss_health_bar)
 
 func _make_bar_style(color: Color) -> StyleBoxFlat:
     var style := StyleBoxFlat.new()

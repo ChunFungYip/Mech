@@ -13,13 +13,15 @@ The current scenario takes place in a neon Mong Kok-inspired street approach. Th
 - Neon signs, hawker stalls, streetlights, overhead utility wires, and a raised footbridge.
 - A combat route populated by hostile mechs that move toward the player and fire when they are in range.
 
-The player starts inside the HK-05 Titan Home Base, a procedural launch hangar at the edge of the street. The base includes a marked mech spawn pad, pilot-link and armory consoles, neon launch-bay lighting, a covered roof, and an open gate facing the combat route.
+The player starts inside the HK-05 Titan Home Base, a procedural launch hangar at the edge of the street. The base includes a marked mech spawn pad, pilot-link and armory consoles, neon launch-bay lighting, a covered roof, and an automatic upward-sliding hangar door facing the combat route. The door opens as the mech approaches the entrance and closes after the mech returns inside. Enemy spawns are kept at least `45 m` away from the player start so the hangar has a safe deployment area.
 
 The player starts in the HK-05 Titan mech. The first wave contains four enemies. Once a wave is cleared, another wave arrives after a short delay. Later waves add more enemies to the encounter.
 
 Enemy kills award credits, which can be spent at the repair bot before the next sortie. The current prototype has no separate campaign map or mission selection; the home base and street are part of one runtime combat scene.
 
 In addition to the opening fixed wave, each run places eight randomized ambush points along the main road. When the player approaches an untriggered point within `20 m`, it spawns between `1` and `5` enemy mechs. Each point is consumed after its first trigger, so the same location does not continuously respawn enemies.
+
+The center of the city contains the Central Market Siege Boss. Entering its `18 m` boss area activates the giant mech and reveals its boss HP bar. The boss is tracked separately from regular waves and awards `1000` credits when destroyed.
 
 ## Main Features
 
@@ -33,11 +35,14 @@ In addition to the opening fixed wave, each run places eight randomized ambush p
 - Selectable missile port that launches an eight-missile homing salvo when a target is locked.
 - Unguided missile salvos that fly straight through the aim point when no target is locked.
 - Hostile NPC mechs with pursuit, line-of-sight shooting, health, and destruction effects.
+- Four enemy archetypes: heavy mech, fast scout mech, flying drone, and eight-legged spider mech.
+- Giant Central Market Siege Boss with a dedicated area trigger and HP bar.
 - MechWarrior-inspired enemy component damage with separate left arm, right arm, upper torso, lower torso, left leg, and right leg HP bars.
 - Randomized city ambush points that activate when the player approaches.
 - Wave spawning, kill tracking, combat announcements, and a code-generated HUD.
 - Reference-inspired settings menu with display, audio, controls, and gameplay pages.
 - Interactive repair bot inside the home base with persistent upgrades, weapon-group changes, frame tuning, and full repair.
+- Automatic upward hangar door with moving collision and neon edge lighting.
 - Local persistence for settings and the mech upgrade profile.
 - Detailed combat visual-effects reference in `docs/COMBAT_VISUAL_EFFECTS.md`.
 - Compatible with the Godot 4.7 project format.
@@ -181,9 +186,30 @@ Enemy mechs use six independent damage pools:
 
 Hits are assigned from the impact position in the enemy mech's local space. The currently locked enemy displays all six component bars in the HUD. Destroyed arm and leg visuals are removed from the mech. Damaging either leg reduces the enemy's movement speed to `40%` of its normal speed. The enemy is destroyed only when both the upper torso and lower torso reach zero HP; destroying an arm or leg alone does not kill it.
 
+### Enemy Archetypes
+
+All archetypes share the same target, projectile, component-damage, credit, and death systems, but their movement and visuals differ:
+
+- `HEAVY MECH`: the standard 5 m ground unit. It moves at `3.2 m/s`, has the full six-part health profile, and is the most durable general-purpose enemy.
+- `SCOUT MECH`: a smaller ground unit with a `0.68` visual scale, `7.0 m/s` movement speed, and approximately `55%` of the heavy mech's component HP. It closes distance quickly and attacks more often.
+- `FLYING DRONE`: a compact hovering unit with approximately `50%` of the heavy mech's component HP. It moves at `5.6 m/s`, maintains roughly `6.5 m` altitude above the combat plane, and attacks from the air without being affected by leg damage.
+- `SPIDER MECH`: a ground unit with an `0.85` visual scale and eight visible legs. It moves at `4.5 m/s`, has approximately `86%` of the heavy mech's component HP, and uses the existing leg-damage slowdown.
+
+The first wave demonstrates all four types. Later fixed waves add more scouts and drones, while randomized city ambushes choose an archetype independently for each spawned enemy.
+
+### Central Market Siege Boss
+
+The giant boss mech starts dormant at the center of the city and is not counted as part of the regular wave contact total. When the player enters the `18 m` Central Market boss area, the boss activates, moves toward the player, and fires a heavy ranged attack. While the player remains inside the area, the HUD displays:
+
+- `SIEGE CLASS // CENTRAL MARKET`
+- Current boss HP and maximum HP
+- A dedicated red boss-health bar
+
+The boss has `2400 HP`, uses the same projectile and raycast damage contract as other enemies, and can be damaged by the machine gun, direct rockets, and missile salvos. Destroying it triggers a large explosion and awards `1000 credits`.
+
 ### Random City Encounters
 
-Random encounter points are generated by `Main.gd` inside the road corridor, away from the home base and the initial player spawn. Their positions are randomized on every run, with a minimum separation between points. A proximity check runs during gameplay; crossing within `20 m` triggers one encounter of `1` to `5` hostile mechs. The fixed wave system remains active alongside these one-shot city ambushes.
+Random encounter points are generated by `Main.gd` inside the road corridor, at least `49 m` from the initial spawn to account for their maximum four-metre enemy-group offset. Their positions are randomized on every run, with a minimum separation between points. A proximity check runs during gameplay; crossing within `20 m` triggers one encounter of `1` to `5` hostile mechs. The fixed wave system remains active alongside these one-shot city ambushes, and its opening enemies are placed deeper down the street beyond the same `45 m` safety radius.
 
 ## Camera Modes
 
@@ -224,6 +250,7 @@ See [docs/COMBAT_VISUAL_EFFECTS.md](docs/COMBAT_VISUAL_EFFECTS.md) for the curre
 | `scripts/UpgradeManager.gd` | Persists credits, upgrade levels, weapon groups, and mech frame tuning. |
 | `scripts/MechPlayer.gd` | Controls player movement, cameras, view switching, weapons, reloads, armor, and aiming. |
 | `scripts/EnemyMech.gd` | Controls enemy movement, pursuit, line-of-sight attacks, health, and destruction. |
+| `scripts/BossMech.gd` | Controls the Central Market giant boss, activation, movement, attacks, health, and defeat state. |
 | `scripts/RocketProjectile.gd` | Handles rocket travel, collision, detonation, and area damage. |
 | `scripts/HomingMissile.gd` | Handles individual missile homing, straight aim-point travel, collision, and detonation. |
 | `scripts/GameHUD.gd` | Creates and updates the runtime HUD and combat announcements. |

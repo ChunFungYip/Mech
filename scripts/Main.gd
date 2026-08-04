@@ -10,6 +10,17 @@ const GameHUDScript = preload("res://scripts/GameHUD.gd")
 const SettingsMenuScript = preload("res://scripts/SettingsMenu.gd")
 const RepairBotScript = preload("res://scripts/RepairBot.gd")
 const RepairBotMenuScript = preload("res://scripts/RepairBotMenu.gd")
+const BossMechScript = preload("res://scripts/BossMech.gd")
+
+const ENEMY_TYPE_HEAVY: int = 0
+const ENEMY_TYPE_SCOUT: int = 1
+const ENEMY_TYPE_DRONE: int = 2
+const ENEMY_TYPE_SPIDER: int = 3
+const PLAYER_SPAWN_POSITION := Vector3(0.0, 0.0, 36.0)
+const MIN_ENEMY_SPAWN_DISTANCE_FROM_PLAYER: float = 45.0
+const RANDOM_ENCOUNTER_MAX_SPAWN_OFFSET: float = 4.0
+const BOSS_CENTER_POSITION := Vector3(0.0, 0.0, 0.0)
+const BOSS_AREA_RADIUS: float = 18.0
 
 var player: Node3D
 var district: Node3D
@@ -18,6 +29,8 @@ var hud: CanvasLayer
 var settings_menu: CanvasLayer
 var repair_bot: Node3D
 var repair_bot_menu: CanvasLayer
+var boss: Node3D
+var _boss_area_active: bool = false
 var wave: int = 1
 var kills: int = 0
 var _spawn_rng := RandomNumberGenerator.new()
@@ -47,6 +60,7 @@ func _ready() -> void:
     _spawn_home_base()
     _build_random_city_spawn_points()
     _spawn_player()
+    _spawn_boss()
     _spawn_hud()
     _spawn_settings_menu()
     _spawn_repair_bot_menu()
@@ -83,7 +97,7 @@ func _spawn_player() -> void:
     player = MechPlayerScript.new()
     player.name = "HK05Titan"
     add_child(player)
-    player.global_position = Vector3(0.0, 0.0, 36.0)
+    player.global_position = PLAYER_SPAWN_POSITION
     player.call("setup", self)
 
 func _spawn_home_base() -> void:
@@ -92,22 +106,43 @@ func _spawn_home_base() -> void:
     add_child(home_base)
     home_base.call("build")
 
+func _spawn_boss() -> void:
+    boss = BossMechScript.new()
+    boss.name = "CentralMarketSiegeBoss"
+    add_child(boss)
+    boss.global_position = BOSS_CENTER_POSITION
+    boss.call("setup", self, player)
+    boss.connect("defeated", Callable(self, "_on_boss_defeated"))
+
 func _spawn_wave() -> void:
     var spawn_positions: Array[Vector3] = [
-        Vector3(-10.0, 0.0, 10.0),
-        Vector3(11.0, 0.0, 0.0),
-        Vector3(-12.0, 0.0, -18.0),
-        Vector3(13.0, 0.0, -31.0)
+        Vector3(-10.0, 0.0, -12.0),
+        Vector3(11.0, 0.0, -24.0),
+        Vector3(-12.0, 0.0, -39.0),
+        Vector3(13.0, 0.0, -53.0)
     ]
     if wave >= 2:
-        spawn_positions.append(Vector3(0.0, 0.0, -49.0))
+        spawn_positions.append(Vector3(0.0, 0.0, -59.0))
     if wave >= 3:
-        spawn_positions.append(Vector3(-6.0, 0.0, -6.0))
-    for spawn_position in spawn_positions:
-        _spawn_enemy(spawn_position, "WAVE_%02d" % wave)
+        spawn_positions.append(Vector3(-6.0, 0.0, -47.0))
+    var spawn_types: Array[int] = [
+        ENEMY_TYPE_HEAVY,
+        ENEMY_TYPE_SCOUT,
+        ENEMY_TYPE_DRONE,
+        ENEMY_TYPE_SPIDER,
+    ]
+    if wave >= 2:
+        spawn_types.append(ENEMY_TYPE_SCOUT)
+    if wave >= 3:
+        spawn_types.append(ENEMY_TYPE_DRONE)
+    for index in spawn_positions.size():
+        var enemy_type := spawn_types[index % spawn_types.size()]
+        _spawn_enemy(spawn_positions[index], "WAVE_%02d" % wave, enemy_type)
     _wave_clear_announced = false
 
 func _process(delta: float) -> void:
+    _update_boss_area()
+    _update_home_base_door()
     _check_random_city_spawn_points()
     if get_enemy_count() == 0:
         if not _wave_clear_announced:
@@ -123,6 +158,27 @@ func _process(delta: float) -> void:
                 if hud != null and hud.has_method("_on_announcement"):
                     hud.call("_on_announcement", "HOSTILE WAVE %02d // ENGAGE" % wave)
 
+func _update_home_base_door() -> void:
+    if home_base == null or not is_instance_valid(player):
+        return
+    if home_base.has_method("update_hangar_door"):
+        home_base.call("update_hangar_door", player.global_position)
+
+func _update_boss_area() -> void:
+    if boss == null or not is_instance_valid(boss) or player == null or not is_instance_valid(player):
+        _boss_area_active = false
+        return
+    var player_distance := Vector2(player.global_position.x, player.global_position.z).distance_to(Vector2(BOSS_CENTER_POSITION.x, BOSS_CENTER_POSITION.z))
+    var inside_area := player_distance <= BOSS_AREA_RADIUS
+    if inside_area and not _boss_area_active:
+        _boss_area_active = true
+        if boss.has_method("activate"):
+            boss.call("activate")
+        if hud != null and hud.has_method("_on_announcement"):
+            hud.call("_on_announcement", "CENTRAL MARKET // SIEGE BOSS ENGAGED")
+    elif not inside_area:
+        _boss_area_active = false
+
 func _build_random_city_spawn_points() -> void:
     _spawn_rng.randomize()
     _city_spawn_points.clear()
@@ -134,7 +190,7 @@ func _build_random_city_spawn_points() -> void:
             _spawn_rng.randf_range(RANDOM_CITY_SPAWN_X_MIN, RANDOM_CITY_SPAWN_X_MAX),
             0.0,
             _spawn_rng.randf_range(RANDOM_CITY_SPAWN_Z_MIN, RANDOM_CITY_SPAWN_Z_MAX))
-        if candidate.distance_to(Vector3(0.0, 0.0, 36.0)) < 34.0:
+        if _horizontal_distance_from_player_spawn(candidate) < MIN_ENEMY_SPAWN_DISTANCE_FROM_PLAYER + RANDOM_ENCOUNTER_MAX_SPAWN_OFFSET:
             continue
         var separated := true
         for existing_point in _city_spawn_points:
@@ -165,18 +221,45 @@ func _spawn_random_city_encounter(point_index: int, center: Vector3) -> void:
         var spawn_position := center + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
         spawn_position.x = clampf(spawn_position.x, RANDOM_CITY_SPAWN_X_MIN - 1.5, RANDOM_CITY_SPAWN_X_MAX + 1.5)
         spawn_position.z = clampf(spawn_position.z, RANDOM_CITY_SPAWN_Z_MIN - 1.5, RANDOM_CITY_SPAWN_Z_MAX + 1.5)
-        _spawn_enemy(spawn_position, "AMBUSH_%02d" % _random_encounters_triggered)
+        var enemy_type := _spawn_rng.randi_range(ENEMY_TYPE_HEAVY, ENEMY_TYPE_SPIDER)
+        _spawn_enemy(spawn_position, "AMBUSH_%02d" % _random_encounters_triggered, enemy_type)
     if hud != null and hud.has_method("_on_announcement"):
         hud.call("_on_announcement", "CITY AMBUSH // POINT %02d // %02d HOSTILES" % [_random_encounters_triggered, enemy_count])
 
-func _spawn_enemy(spawn_position: Vector3, encounter_name: String) -> void:
+func _spawn_enemy(spawn_position: Vector3, encounter_name: String, enemy_type: int = ENEMY_TYPE_HEAVY) -> void:
     _enemy_spawn_serial += 1
     var enemy: Node3D = EnemyMechScript.new()
-    enemy.name = "%s_%03d" % [encounter_name, _enemy_spawn_serial]
+    enemy.enemy_type = enemy_type
+    enemy.name = "%s_%s_%03d" % [_enemy_type_name(enemy_type), encounter_name, _enemy_spawn_serial]
     add_child(enemy)
+    if _horizontal_distance_from_player_spawn(spawn_position) < MIN_ENEMY_SPAWN_DISTANCE_FROM_PLAYER:
+        var away_direction := Vector3(spawn_position.x - PLAYER_SPAWN_POSITION.x, 0.0, spawn_position.z - PLAYER_SPAWN_POSITION.z)
+        if away_direction.length_squared() < 0.001:
+            away_direction = Vector3(0.0, 0.0, -1.0)
+        spawn_position = PLAYER_SPAWN_POSITION + away_direction.normalized() * MIN_ENEMY_SPAWN_DISTANCE_FROM_PLAYER
+    if enemy_type == ENEMY_TYPE_DRONE:
+        spawn_position.y = maxf(spawn_position.y, 6.5)
     enemy.global_position = spawn_position
     enemy.call("setup", self, player)
     enemy.connect("died", Callable(self, "_on_enemy_died"))
+
+func _horizontal_distance_from_player_spawn(position: Vector3) -> float:
+    return Vector2(position.x, position.z).distance_to(Vector2(PLAYER_SPAWN_POSITION.x, PLAYER_SPAWN_POSITION.z))
+
+func _enemy_type_name(enemy_type: int) -> String:
+    match enemy_type:
+        ENEMY_TYPE_SCOUT:
+            return "SCOUT"
+        ENEMY_TYPE_DRONE:
+            return "DRONE"
+        ENEMY_TYPE_SPIDER:
+            return "SPIDER"
+    return "HEAVY"
+
+func _on_boss_defeated(_defeated_boss: Node) -> void:
+    UpgradeManager.add_credits(1000)
+    if hud != null and hud.has_method("_on_announcement"):
+        hud.call("_on_announcement", "CENTRAL MARKET // SIEGE BOSS DESTROYED // +1000 CREDITS")
 
 func _spawn_hud() -> void:
     hud = GameHUDScript.new()
@@ -205,7 +288,17 @@ func open_repair_bot() -> void:
         repair_bot_menu.call("open_menu", player)
 
 func get_enemy_count() -> int:
-    return get_tree().get_nodes_in_group("enemy_mechs").size()
+    var count := 0
+    for enemy in get_tree().get_nodes_in_group("enemy_mechs"):
+        if not bool(enemy.get("is_boss")):
+            count += 1
+    return count
+
+func get_boss() -> Node:
+    return boss
+
+func is_boss_area_active() -> bool:
+    return _boss_area_active
 
 func _on_enemy_died(_enemy: Node) -> void:
     kills += 1
