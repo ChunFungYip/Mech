@@ -125,7 +125,7 @@ func _build_audio_page() -> void:
 func _build_controls_page() -> void:
     var page := _new_page()
     _add_info_row(page, "W A S D", "Move mech")
-    _add_info_row(page, "SHIFT", "Boost movement")
+    _add_info_row(page, "SHIFT", "Heat-limited sprint")
     _add_info_row(page, "MOUSE", "Aim and rotate camera")
     _add_info_row(page, "LMB / RMB", "Left rocket / right machine gun")
     _add_info_row(page, "R", "Reload machine gun")

@@ -14,6 +14,10 @@ signal announcement(text: String)
 @export var boost_multiplier: float = 1.65
 @export var acceleration: float = 24.0
 @export var gravity: float = 18.0
+@export var sprint_safe_duration: float = 10.0
+@export var sprint_max_duration: float = 20.0
+@export var sprint_recovery_seconds: float = 6.0
+@export var sprint_overheat_recovery_multiplier: float = 3.0
 @export var health_max: float = 500.0
 @export var machinegun_magazine_size: int = 60
 @export var machinegun_reserve_max: int = 240
@@ -41,6 +45,11 @@ var pitch: float = -0.08
 var mouse_sensitivity_x: float = 0.0025
 var mouse_sensitivity_y: float = 0.0022
 var mouse_invert_y: bool = false
+var sprint_elapsed: float = 0.0
+var sprint_recovery_timer: float = 0.0
+var sprint_active: bool = false
+var sprint_overheated: bool = false
+var _sprint_extended_announced: bool = false
 
 var game: Node3D
 var _body_visual: Node3D
@@ -298,8 +307,10 @@ func _physics_process(delta: float) -> void:
     if move_direction.length_squared() > 1.0:
         move_direction = move_direction.normalized()
 
+    var sprint_requested := Input.is_action_pressed("boost") and move_direction.length_squared() > 0.0001
+    var sprinting := _update_sprint(delta, sprint_requested)
     var speed := move_speed
-    if Input.is_action_pressed("boost"):
+    if sprinting:
         speed *= boost_multiplier
     var target_velocity := move_direction * speed
     velocity.x = move_toward(velocity.x, target_velocity.x, acceleration * delta)
@@ -313,6 +324,38 @@ func _physics_process(delta: float) -> void:
     _view_pivot.rotation = Vector3(pitch, yaw, 0.0)
     _body_visual.rotation.y = lerp_angle(_body_visual.rotation.y, yaw, minf(delta * 8.0, 1.0))
     stats_changed.emit()
+
+func _update_sprint(delta: float, requested: bool) -> bool:
+    sprint_active = false
+    if sprint_overheated:
+        sprint_recovery_timer = maxf(sprint_recovery_timer - delta, 0.0)
+        if is_zero_approx(sprint_recovery_timer):
+            sprint_overheated = false
+            sprint_elapsed = 0.0
+            _sprint_extended_announced = false
+            announcement.emit("SPRINT // COOLED AND READY")
+        return false
+
+    if requested:
+        sprint_elapsed = minf(sprint_elapsed + delta, sprint_max_duration)
+        if sprint_elapsed >= sprint_safe_duration and not _sprint_extended_announced:
+            _sprint_extended_announced = true
+            announcement.emit("SPRINT // EXTENDED WINDOW // HEAT RISING")
+        if sprint_elapsed >= sprint_max_duration:
+            sprint_elapsed = sprint_max_duration
+            sprint_overheated = true
+            sprint_recovery_timer = sprint_recovery_seconds * sprint_overheat_recovery_multiplier
+            announcement.emit("SPRINT // OVERHEATED // RECOVERY %02d S" % int(ceil(sprint_recovery_timer)))
+            return false
+        sprint_active = true
+        return true
+
+    if sprint_elapsed > 0.0:
+        var recovery_rate := sprint_max_duration / maxf(sprint_recovery_seconds, 0.1)
+        sprint_elapsed = move_toward(sprint_elapsed, 0.0, recovery_rate * delta)
+        if is_zero_approx(sprint_elapsed):
+            _sprint_extended_announced = false
+    return false
 
 func _unhandled_input(event: InputEvent) -> void:
     if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -553,7 +596,19 @@ func get_speed_mps() -> float:
     return Vector2(velocity.x, velocity.z).length()
 
 func is_boosting() -> bool:
-    return Input.is_action_pressed("boost") and get_speed_mps() > 0.1
+    return sprint_active and get_speed_mps() > 0.1
+
+func get_sprint_status() -> String:
+    if sprint_overheated:
+        return "OVERHEATED // %02d S" % int(ceil(sprint_recovery_timer))
+    if sprint_active:
+        if sprint_elapsed < sprint_safe_duration:
+            return "SPRINT // %02d/%02d S" % [int(ceil(sprint_elapsed)), int(sprint_safe_duration)]
+        return "EXTENDED // %02d/%02d S" % [int(ceil(sprint_elapsed)), int(sprint_max_duration)]
+    if sprint_elapsed > 0.0:
+        var recovery_percent := int(round((1.0 - sprint_elapsed / sprint_max_duration) * 100.0))
+        return "RECHARGE // %02d%%" % recovery_percent
+    return "READY // SAFE 10 S"
 
 func get_weapon_status() -> String:
     match current_weapon:
