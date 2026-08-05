@@ -4,6 +4,7 @@ class_name MechUpgradeManager
 const PROFILE_PATH: String = "user://mech_upgrade_profile.cfg"
 const SAVE_SLOT_COUNT: int = 3
 const SAVE_SLOT_PATH_FORMAT: String = "user://mech_campaign_slot_%d.cfg"
+const SAVE_STATE_PATH_FORMAT: String = "user://mech_campaign_slot_%d_state.cfg"
 const DEFAULT_CREDITS: int = 1200
 
 signal profile_changed
@@ -95,7 +96,33 @@ func get_slot_summary(slot_id: int) -> String:
         return "SLOT %02d // EMPTY" % slot_id
     var mission := int(config.get_value("campaign", "mission", 1))
     var completed := int(config.get_value("campaign", "completed", 0))
-    return "SLOT %02d // MISSION %02d // COMPLETE %02d" % [slot_id, mission, completed]
+    var state_status := "SAVE READY" if has_game_state(slot_id) else "PROFILE ONLY"
+    return "SLOT %02d // MISSION %02d // COMPLETE %02d // %s" % [slot_id, mission, completed, state_status]
+
+func save_game_state(slot_id: int, state: Dictionary) -> bool:
+    if slot_id < 1 or slot_id > SAVE_SLOT_COUNT:
+        return false
+    var config := ConfigFile.new()
+    config.set_value("state", "version", int(state.get("version", 1)))
+    for state_key in state.keys():
+        config.set_value("state", str(state_key), state[state_key])
+    return config.save(_state_path(slot_id)) == OK
+
+func load_game_state(slot_id: int) -> Dictionary:
+    if slot_id < 1 or slot_id > SAVE_SLOT_COUNT:
+        return {}
+    var config := ConfigFile.new()
+    if config.load(_state_path(slot_id)) != OK:
+        return {}
+    var state: Dictionary = {}
+    for state_key in config.get_section_keys("state"):
+        state[state_key] = config.get_value("state", state_key)
+    return state
+
+func has_game_state(slot_id: int) -> bool:
+    if slot_id < 1 or slot_id > SAVE_SLOT_COUNT:
+        return false
+    return FileAccess.file_exists(_state_path(slot_id))
 
 func record_mission_complete(mission_index: int) -> void:
     campaign_completed = maxi(campaign_completed, mission_index)
@@ -104,6 +131,9 @@ func record_mission_complete(mission_index: int) -> void:
 
 func _slot_path(slot_id: int) -> String:
     return SAVE_SLOT_PATH_FORMAT % slot_id
+
+func _state_path(slot_id: int) -> String:
+    return SAVE_STATE_PATH_FORMAT % slot_id
 
 func get_upgrade_ids() -> Array[StringName]:
     return [&"armor", &"mobility", &"machinegun", &"rocket", &"missile"]

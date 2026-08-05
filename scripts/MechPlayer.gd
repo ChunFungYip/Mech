@@ -846,3 +846,29 @@ func restore_after_failure(position: Vector3) -> void:
     _emp_cooldown = 0.0
     announcement.emit("COCKPIT RESET // INVULNERABLE %02d S" % int(ceil(respawn_invulnerability_seconds)))
     stats_changed.emit()
+
+func restore_save_state(state: Dictionary) -> void:
+    _disabled = false
+    var saved_position = state.get("player_position", global_position)
+    if saved_position is Vector3:
+        global_position = saved_position
+    health = clampf(float(state.get("player_health", health_max)), 0.0, health_max)
+    machinegun_ammo = clampi(int(state.get("machinegun_ammo", machinegun_ammo)), 0, machinegun_magazine_size)
+    machinegun_reserve = clampi(int(state.get("machinegun_reserve", machinegun_reserve)), 0, machinegun_reserve_max)
+    rocket_ammo = clampi(int(state.get("rocket_ammo", rocket_ammo)), 0, rocket_magazine_size)
+    rocket_reserve = clampi(int(state.get("rocket_reserve", rocket_reserve)), 0, rocket_reserve_max)
+    missile_salvo_count = maxi(int(state.get("missile_salvo_count", missile_salvo_count)), 0)
+    _emp_cooldown = maxf(float(state.get("emp_cooldown", 0.0)), 0.0)
+    yaw = float(state.get("player_yaw", yaw))
+    pitch = clampf(float(state.get("player_pitch", pitch)), -1.05, 0.72)
+    var desired_first_person: bool = state.get("first_person", first_person) == true
+    if first_person != desired_first_person:
+        toggle_view()
+    var saved_weapon := clampi(int(state.get("current_weapon", int(WeaponMode.DUAL_HANDS))), 0, 1)
+    current_weapon = saved_weapon as WeaponMode
+    _reload_timer = 0.0
+    _missile_lock_target = null
+    _respawn_invulnerability_timer = 0.0
+    velocity = Vector3.ZERO
+    _refresh_first_person_weapon_visuals()
+    stats_changed.emit()

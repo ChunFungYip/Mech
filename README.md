@@ -57,8 +57,8 @@ The center of the city contains the Central Market Siege Boss. Entering its `18 
 - Automatic upward hangar door with moving collision and neon edge lighting.
 - Runtime-generated procedural audio for weapons, impacts, explosions, the hangar door, and repair interaction.
 - Procedural city ambience plus mission, boss-phase, hazard, and completion stingers.
-- Local persistence for settings and the mech upgrade profile.
-- Three campaign save slots with mission completion tracking, Story/Standard/Veteran balancing, and first-sortie onboarding.
+- Local persistence for settings, the mech upgrade profile, and live mission state.
+- Three campaign save slots with mission completion tracking, live player/enemy/boss restoration, Story/Standard/Veteran balancing, and first-sortie onboarding.
 - Detailed combat visual-effects reference in `docs/COMBAT_VISUAL_EFFECTS.md`.
 - Bilingual audit and fix record in `docs/audit20260804.md`.
 - Compatible with the Godot 4.7 project format.
@@ -223,9 +223,9 @@ Press `Esc` during gameplay to open the settings menu. It pauses the combat scen
 - `AUDIO`: master volume.
 - `CONTROLS`: the current movement, weapon, camera, reload, missile, and repair-bot bindings.
 - `GAMEPLAY`: mouse X/Y sensitivity, inverted vertical aim, reduced combat effects, and difficulty.
-- `PROFILE`: three campaign save slots and mission-progress summaries.
+- `PROFILE`: three campaign save slots, mission-progress summaries, and `SAVE GAME` / `LOAD GAME` actions.
 
-Settings are saved to `user://mech_settings.cfg`. Upgrade data remains backward-compatible in `user://mech_upgrade_profile.cfg`; campaign slots are stored as `user://mech_campaign_slot_1.cfg` through `user://mech_campaign_slot_3.cfg`. The first-sortie tutorial can be dismissed and is remembered in the settings file.
+Settings are saved to `user://mech_settings.cfg`. Upgrade data remains backward-compatible in `user://mech_upgrade_profile.cfg`; campaign profile slots are stored as `user://mech_campaign_slot_1.cfg` through `user://mech_campaign_slot_3.cfg`, with matching runtime state files ending in `_state.cfg`. `SAVE GAME` captures the player position, health, ammunition, weapon/view state, mission flags, wave and ambush progress, active enemies, checkpoints, and boss phase/health. Deployment, boss engagement, boss defeat, and mission completion also create automatic saves in the active slot. `LOAD GAME` restores the selected slot into the current scene without restarting the application.
 
 ## Audio
 
@@ -252,7 +252,7 @@ The HUD radar covers a `50 m` radius around the player. Its center is the player
 | `scripts/HomeBase.gd` | Generates the protected HK-05 launch hangar and player spawn area. |
 | `scripts/RepairBot.gd` | Generates the interactive service NPC and proximity prompt inside the home base. |
 | `scripts/RepairBotMenu.gd` | Creates the repair dialogue, upgrade shop, weapon-group selector, frame tuner, and repair action. |
-| `scripts/UpgradeManager.gd` | Persists credits, upgrade levels, weapon groups, and mech frame tuning. |
+| `scripts/UpgradeManager.gd` | Persists credits, upgrades, campaign profiles, and per-slot runtime save state. |
 | `scripts/MechPlayer.gd` | Controls player movement, cameras, view switching, weapons, reloads, armor, and aiming. |
 | `scripts/EnemyMech.gd` | Controls enemy movement, pursuit, line-of-sight attacks, health, and destruction. |
 | `scripts/BossMech.gd` | Controls the Central Market giant boss, activation, movement, attacks, health, and defeat state. |
@@ -285,7 +285,7 @@ This project uses patterns from the sibling `HonGong-ShootingRange` project:
 - There is no multiplayer or networking layer.
 - Enemy behavior is intentionally lightweight and does not yet use navigation meshes, cover tactics, squad coordination, or advanced pathfinding.
 - There are no imported character animations, music, dialogue, or authored 3D models yet. Core sound effects are generated procedurally, but there are no ambience or looping mech audio systems yet.
-- There is no campaign save-slot system, mission selection, inventory, or account-level progression. Settings and the repair-bot upgrade profile are saved locally.
+- The campaign currently contains one playable mission; mission selection, inventory, and account-level progression are not yet implemented. Save slots and settings are stored locally.
 - The movement system does not currently include jumping, crouching, melee, or aerial movement.
 
 ## Possible Next Steps

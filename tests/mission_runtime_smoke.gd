@@ -1,6 +1,8 @@
 extends Node
 
 var _failed: bool = false
+const TEST_SLOT: int = 3
+var _backups: Dictionary = {}
 
 func _ready() -> void:
 	call_deferred("_run")
@@ -8,6 +10,9 @@ func _ready() -> void:
 func _run() -> void:
 	var settings := get_node("/root/SettingsManager")
 	settings.set("tutorial_seen", true)
+	_backup_file("user://mech_upgrade_profile.cfg")
+	_backup_file("user://mech_campaign_slot_3.cfg")
+	_backup_file("user://mech_campaign_slot_3_state.cfg")
 	var main := preload("res://scripts/Main.gd").new()
 	main.name = "RuntimeSmokeMain"
 	add_child(main)
@@ -36,7 +41,52 @@ func _run() -> void:
 	_check(main.boss != null and is_instance_valid(main.boss), "mission restart did not restore the boss")
 	_check(main.get("_mission_deployed") == false, "mission restart did not reset deployment state")
 
+	var saved_position := Vector3(-4.0, 0.0, -18.0)
+	player.global_position = saved_position
+	player.set("health", 271.0)
+	player.set("machinegun_ammo", 17)
+	player.set("rocket_ammo", 2)
+	main.set("_mission_deployed", true)
+	main.set("_boss_engaged", true)
+	main.set("_checkpoint_name", "CENTRAL MARKET")
+	main.set("_checkpoint_position", saved_position)
+	main.set("wave", 4)
+	var save_result: bool = main.call("save_game", TEST_SLOT)
+	_check(save_result, "save_game returned false")
+	player.global_position = Vector3(25.0, 0.0, 25.0)
+	player.set("health", 42.0)
+	player.set("machinegun_ammo", 1)
+	main.set("_mission_deployed", false)
+	main.set("_boss_engaged", false)
+	main.set("wave", 1)
+	var load_result: bool = main.call("load_game", TEST_SLOT)
+	_check(load_result, "load_game returned false")
+	await process_frame
+	_check(player.global_position.distance_to(saved_position) < 0.01, "load_game did not restore player position")
+	_check(is_equal_approx(float(player.get("health")), 271.0), "load_game did not restore player health")
+	_check(int(player.get("machinegun_ammo")) == 17, "load_game did not restore machine-gun ammo")
+	_check(main.get("_mission_deployed") == true, "load_game did not restore mission state")
+	_check(main.get("_boss_engaged") == true, "load_game did not restore boss state")
+	_check(int(main.get("wave")) == 4, "load_game did not restore wave")
+	_check(main.get_enemy_count() > 0, "load_game did not restore saved enemies")
+
+	_restore_backups()
 	get_tree().quit(0)
+
+func _backup_file(path: String) -> void:
+	_backups[path] = {
+		"exists": FileAccess.file_exists(path),
+		"data": FileAccess.get_file_as_bytes(path) if FileAccess.file_exists(path) else PackedByteArray(),
+	}
+
+func _restore_backups() -> void:
+	for path in _backups.keys():
+		var backup: Dictionary = _backups[path]
+		if backup["exists"]:
+			var file := FileAccess.open(path, FileAccess.WRITE)
+			file.store_buffer(backup["data"])
+		else:
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 func _check(condition: bool, message: String) -> void:
 	if condition:

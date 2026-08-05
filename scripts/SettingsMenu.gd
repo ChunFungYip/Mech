@@ -1,6 +1,7 @@
 extends CanvasLayer
 class_name MechSettingsMenu
 
+var game: Node
 var _menu_root: Control
 var _content: Control
 var _pages: Array[Control] = []
@@ -22,6 +23,9 @@ var _slot_option: OptionButton
 var _slot_status: Label
 var _settings_panel: ColorRect
 const SETTINGS_PANEL_SIZE := Vector2(760.0, 570.0)
+
+func setup(game_instance: Node) -> void:
+    game = game_instance
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
@@ -204,12 +208,12 @@ func _build_profile_page() -> void:
     actions.add_theme_constant_override("separation", 12)
     page.add_child(actions)
     var save_button := Button.new()
-    save_button.text = "SAVE SLOT"
+    save_button.text = "SAVE GAME"
     save_button.custom_minimum_size = Vector2(180.0, 38.0)
     save_button.pressed.connect(_save_selected_slot)
     actions.add_child(save_button)
     var load_button := Button.new()
-    load_button.text = "LOAD SLOT"
+    load_button.text = "LOAD GAME"
     load_button.custom_minimum_size = Vector2(180.0, 38.0)
     load_button.pressed.connect(_load_selected_slot)
     actions.add_child(load_button)
@@ -354,17 +358,30 @@ func _save_selected_slot() -> void:
     if _slot_option == null:
         return
     var slot_id := _slot_option.get_selected_id()
-    UpgradeManager.save_slot(slot_id)
-    _refresh_slot_status()
+    var saved := false
+    if game != null and game.has_method("save_game"):
+        saved = game.call("save_game", slot_id) == true
+    else:
+        saved = UpgradeManager.save_slot(slot_id)
+    if saved:
+        _slot_status.text = UpgradeManager.get_slot_summary(slot_id) + " // SAVED"
+    else:
+        _slot_status.text = "SLOT %02d // SAVE FAILED" % slot_id
 
 func _load_selected_slot() -> void:
     if _slot_option == null:
         return
     var slot_id := _slot_option.get_selected_id()
-    if UpgradeManager.load_slot(slot_id):
-        _refresh_slot_status()
+    var loaded := false
+    if game != null and game.has_method("load_game"):
+        loaded = game.call("load_game", slot_id) == true
     else:
-        _slot_status.text = "SLOT %02d // EMPTY // SAVE A NEW CAMPAIGN HERE" % slot_id
+        loaded = UpgradeManager.load_slot(slot_id)
+    if loaded:
+        _refresh_slot_status()
+        close_menu()
+    else:
+        _slot_status.text = "SLOT %02d // NO GAME SAVE" % slot_id
 
 func _refresh_slot_status() -> void:
     if _slot_status == null or _slot_option == null:

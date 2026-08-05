@@ -87,6 +87,37 @@ func setup(game_instance: Node3D, target_instance: Node3D) -> void:
     _attack_timer = randf_range(0.45, 1.25)
     _strafe_sign = -1.0 if randf() < 0.5 else 1.0
 
+func get_save_state() -> Dictionary:
+    var saved_parts: Dictionary = {}
+    for part_id in PART_IDS:
+        saved_parts[String(part_id)] = float(part_health.get(part_id, 0.0))
+    return {
+        "enemy_type": int(enemy_type),
+        "position": global_position,
+        "part_health": saved_parts,
+        "attack_timer": _attack_timer,
+        "stagger_timer": _stagger_timer,
+    }
+
+func restore_save_state(state: Dictionary) -> void:
+    _dead = false
+    var saved_position = state.get("position", global_position)
+    if saved_position is Vector3:
+        global_position = saved_position
+    var saved_parts = state.get("part_health", {})
+    for part_id in PART_IDS:
+        var maximum := float(part_max_health.get(part_id, 0.0))
+        part_health[part_id] = clampf(float(saved_parts.get(String(part_id), maximum)), 0.0, maximum)
+    health = _get_total_part_health()
+    health_max = 0.0
+    for part_id in PART_IDS:
+        health_max += float(part_max_health.get(part_id, 0.0))
+    _attack_timer = maxf(float(state.get("attack_timer", _attack_timer)), 0.0)
+    _stagger_timer = maxf(float(state.get("stagger_timer", 0.0)), 0.0)
+    _stagger_duration = _stagger_timer
+    velocity = Vector3.ZERO
+    _refresh_all_part_damage_visuals()
+
 func apply_difficulty(health_scale: float, damage_scale: float) -> void:
     for part_id in PART_IDS:
         var previous_maximum := maxf(float(part_max_health.get(part_id, 1.0)), 0.01)

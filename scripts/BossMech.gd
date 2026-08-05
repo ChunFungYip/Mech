@@ -72,6 +72,24 @@ func reset_encounter() -> void:
     _special_attack_index = 0
     _apply_phase()
 
+func restore_save_state(state: Dictionary) -> void:
+    _dead = false
+    is_defeated = false
+    var saved_position = state.get("boss_position", global_position)
+    if saved_position is Vector3:
+        global_position = saved_position
+    active = state.get("boss_active", active) == true
+    phase = clampi(int(state.get("boss_phase", phase)), 1, 3)
+    _apply_phase()
+    var saved_health_ratio := clampf(float(state.get("boss_health_ratio", 1.0)), 0.0, 1.0)
+    health = health_max * saved_health_ratio
+    attack_damage = maxf(float(state.get("boss_attack_damage", attack_damage)), 0.0)
+    _attack_timer = maxf(float(state.get("boss_attack_timer", 1.2)), 0.0)
+    _special_attack_timer = maxf(float(state.get("boss_special_attack_timer", 4.5)), 0.0)
+    _special_attack_index = maxi(int(state.get("boss_special_attack_index", 0)), 0)
+    velocity = Vector3.ZERO
+    health_changed.emit(health, health_max)
+
 func _apply_phase() -> void:
     match phase:
         2:

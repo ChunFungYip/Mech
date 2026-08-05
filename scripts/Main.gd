@@ -198,6 +198,7 @@ func _update_boss_area() -> void:
 		_checkpoint_name = "CENTRAL MARKET"
 		if boss.has_method("activate"):
 			boss.call("activate")
+		save_game()
 		if hud != null and hud.has_method("_on_announcement"):
 			hud.call("_on_announcement", "CENTRAL MARKET // SIEGE BOSS ENGAGED")
 	elif not inside_area:
@@ -211,6 +212,7 @@ func _update_mission_state() -> void:
 		_checkpoint_position = player.global_position
 		_checkpoint_name = "MARKET APPROACH"
 		AudioManager.play_sound(&"mission_start", player.global_position, 1.0)
+		save_game()
 		if hud != null and hud.has_method("_on_announcement"):
 			hud.call("_on_announcement", "SORTIE LIVE // REACH CENTRAL MARKET")
 	if _boss_defeated and not _mission_complete and _horizontal_distance_from_hangar(player.global_position) < 22.0:
@@ -218,6 +220,7 @@ func _update_mission_state() -> void:
 		AudioManager.play_sound(&"mission_complete", player.global_position, 1.0)
 		if UpgradeManager.has_method("record_mission_complete"):
 			UpgradeManager.call("record_mission_complete", 1)
+		save_game()
 		if hud != null and hud.has_method("_on_announcement"):
 			hud.call("_on_announcement", "MISSION COMPLETE // RETURNED TO HOME BASE")
 		if mission_overlay != null and mission_overlay.has_method("show_complete"):
@@ -273,6 +276,7 @@ func _spawn_random_city_encounter(point_index: int, center: Vector3) -> void:
 		hud.call("_on_announcement", "CITY AMBUSH // POINT %02d // %02d HOSTILES" % [_random_encounters_triggered, enemy_count])
 
 func _spawn_enemy(spawn_position: Vector3, encounter_name: String, enemy_type: int = ENEMY_TYPE_HEAVY) -> void:
+func _spawn_enemy(spawn_position: Vector3, encounter_name: String, enemy_type: int = ENEMY_TYPE_HEAVY) -> Node3D:
 	_enemy_spawn_serial += 1
 	var enemy: Node3D = EnemyMechScript.new()
 	enemy.enemy_type = enemy_type
@@ -294,6 +298,7 @@ func _spawn_enemy(spawn_position: Vector3, encounter_name: String, enemy_type: i
 	enemy.call("setup", self, player)
 	enemy.call("apply_difficulty", SettingsManager.get_enemy_health_scale(), SettingsManager.get_enemy_damage_scale())
 	enemy.connect("died", Callable(self, "_on_enemy_died"))
+	return enemy
 
 func _on_difficulty_changed(_level: int) -> void:
 	for hostile in get_tree().get_nodes_in_group("enemy_mechs"):
@@ -337,6 +342,7 @@ func _on_boss_defeated(_defeated_boss: Node) -> void:
 	_boss_area_active = false
 	AudioManager.play_sound(&"mission_complete", BOSS_CENTER_POSITION, 1.3)
 	UpgradeManager.add_credits(1000)
+	save_game()
 	if hud != null and hud.has_method("_on_announcement"):
 		hud.call("_on_announcement", "CENTRAL MARKET // SIEGE BOSS DESTROYED // +1000 CREDITS")
 
@@ -354,6 +360,7 @@ func _spawn_settings_menu() -> void:
 	settings_menu = SettingsMenuScript.new()
 	settings_menu.name = "SettingsMenu"
 	add_child(settings_menu)
+	settings_menu.call("setup", self)
 
 func _spawn_repair_bot_menu() -> void:
 	repair_bot_menu = RepairBotMenuScript.new()
@@ -382,6 +389,128 @@ func _spawn_repair_bot() -> void:
 func open_repair_bot() -> void:
 	if repair_bot_menu != null and repair_bot_menu.has_method("open_menu"):
 		repair_bot_menu.call("open_menu", player)
+
+func save_game(slot_id: int = -1) -> bool:
+	if slot_id < 1:
+		slot_id = int(UpgradeManager.active_slot)
+	if player == null or not is_instance_valid(player):
+		return false
+	if not UpgradeManager.save_slot(slot_id):
+		return false
+	return UpgradeManager.save_game_state(slot_id, _build_game_state())
+
+func load_game(slot_id: int = -1) -> bool:
+	if slot_id < 1:
+		slot_id = int(UpgradeManager.active_slot)
+	if not UpgradeManager.has_game_state(slot_id):
+		return false
+	if not UpgradeManager.load_slot(slot_id):
+		return false
+	var state := UpgradeManager.load_game_state(slot_id)
+	if state.is_empty():
+		return false
+	_restore_game_state(state)
+	if settings_menu != null and settings_menu.has_method("close_menu"):
+		settings_menu.call("close_menu")
+	return true
+
+func _build_game_state() -> Dictionary:
+	var triggered_points: Array[int] = []
+	for triggered in _city_spawn_triggered:
+		triggered_points.append(1 if triggered else 0)
+	var enemy_states: Array[Dictionary] = []
+	for hostile in get_tree().get_nodes_in_group("enemy_mechs"):
+		if hostile == boss or not hostile.has_method("get_save_state"):
+			continue
+		enemy_states.append(hostile.call("get_save_state"))
+	var state: Dictionary = {
+		"version": 1,
+		"player_position": player.global_position,
+		"player_health": float(player.get("health")),
+		"machinegun_ammo": int(player.get("machinegun_ammo")),
+		"machinegun_reserve": int(player.get("machinegun_reserve")),
+		"rocket_ammo": int(player.get("rocket_ammo")),
+		"rocket_reserve": int(player.get("rocket_reserve")),
+		"missile_salvo_count": int(player.get("missile_salvo_count")),
+		"emp_cooldown": float(player.get("_emp_cooldown")),
+		"current_weapon": int(player.get("current_weapon")),
+		"first_person": player.get("first_person") == true,
+		"player_yaw": float(player.get("yaw")),
+		"player_pitch": float(player.get("pitch")),
+		"mission_deployed": _mission_deployed,
+		"mission_complete": _mission_complete,
+		"boss_engaged": _boss_engaged,
+		"boss_defeated": _boss_defeated,
+		"boss_area_active": _boss_area_active,
+		"checkpoint_position": _checkpoint_position,
+		"checkpoint_name": _checkpoint_name,
+		"wave": wave,
+		"kills": kills,
+		"city_spawn_triggered": triggered_points,
+		"random_encounters_triggered": _random_encounters_triggered,
+		"next_wave_timer": _next_wave_timer,
+		"wave_clear_announced": _wave_clear_announced,
+		"enemies": enemy_states,
+	}
+	if boss != null and is_instance_valid(boss):
+		state["boss_position"] = boss.global_position
+		state["boss_active"] = boss.get("active") == true
+		state["boss_phase"] = int(boss.get("phase"))
+		state["boss_health_ratio"] = float(boss.call("get_health_percent")) if boss.has_method("get_health_percent") else 1.0
+		state["boss_attack_damage"] = float(boss.get("attack_damage"))
+		state["boss_attack_timer"] = float(boss.get("_attack_timer"))
+		state["boss_special_attack_timer"] = float(boss.get("_special_attack_timer"))
+		state["boss_special_attack_index"] = int(boss.get("_special_attack_index"))
+	return state
+
+func _restore_game_state(state: Dictionary) -> void:
+	_clear_combat_units()
+	_mission_deployed = state.get("mission_deployed", false) == true
+	_mission_complete = state.get("mission_complete", false) == true
+	_boss_engaged = state.get("boss_engaged", false) == true
+	_boss_defeated = state.get("boss_defeated", false) == true
+	_boss_area_active = state.get("boss_area_active", false) == true
+	_checkpoint_name = str(state.get("checkpoint_name", "HOME BASE"))
+	var saved_checkpoint = state.get("checkpoint_position", PLAYER_SPAWN_POSITION)
+	if saved_checkpoint is Vector3:
+		_checkpoint_position = saved_checkpoint
+	wave = maxi(int(state.get("wave", 1)), 1)
+	kills = maxi(int(state.get("kills", 0)), 0)
+	_random_encounters_triggered = maxi(int(state.get("random_encounters_triggered", 0)), 0)
+	_next_wave_timer = maxf(float(state.get("next_wave_timer", 0.0)), 0.0)
+	_wave_clear_announced = state.get("wave_clear_announced", false) == true
+	_city_spawn_triggered.clear()
+	var saved_triggered = state.get("city_spawn_triggered", [])
+	for point_index in _city_spawn_points.size():
+		_city_spawn_triggered.append(point_index < saved_triggered.size() and int(saved_triggered[point_index]) != 0)
+
+	if is_instance_valid(player) and player.has_method("restore_save_state"):
+		player.call("restore_save_state", state)
+
+	if _boss_defeated:
+		if boss != null and is_instance_valid(boss):
+			boss.queue_free()
+		boss = null
+	else:
+		if boss == null or not is_instance_valid(boss) or boss.get("_dead") == true:
+			if boss != null and is_instance_valid(boss):
+				boss.queue_free()
+			boss = null
+			_spawn_boss()
+		if boss.has_method("restore_save_state"):
+			boss.call("restore_save_state", state)
+
+	var saved_enemies = state.get("enemies", [])
+	for enemy_state in saved_enemies:
+		if not enemy_state is Dictionary:
+			continue
+		var enemy_position = enemy_state.get("position", Vector3.ZERO)
+		if not enemy_position is Vector3:
+			continue
+		var enemy_type := clampi(int(enemy_state.get("enemy_type", ENEMY_TYPE_HEAVY)), ENEMY_TYPE_HEAVY, ENEMY_TYPE_SPIDER)
+		var enemy := _spawn_enemy(enemy_position, "SAVE_%02d" % wave, enemy_type)
+		if enemy != null and enemy.has_method("restore_save_state"):
+			enemy.call("restore_save_state", enemy_state)
 
 func _on_player_defeated() -> void:
 	if mission_overlay != null and mission_overlay.has_method("show_failure"):
