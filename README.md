@@ -40,6 +40,7 @@ The center of the city contains the Central Market Siege Boss. Entering its `18 
 - MechWarrior-inspired enemy component damage with separate left arm, right arm, upper torso, lower torso, left leg, and right leg HP bars.
 - Randomized city ambush points that activate when the player approaches.
 - Wave spawning, kill tracking, combat announcements, and a code-generated HUD.
+- Resolution-aware HUD and menu layouts that scale to fit the current viewport.
 - Reference-inspired settings menu with display, audio, controls, and gameplay pages.
 - Interactive repair bot inside the home base with persistent upgrades, weapon-group changes, frame tuning, and full repair.
 - Automatic upward hangar door with moving collision and neon edge lighting.
@@ -84,6 +85,8 @@ The world is assembled by scripts when the main scene starts. There is no separa
 | `R` | Reload the machine gun. |
 
 When the missile port is selected with `3`, both hand weapons are disabled. The missile lock searches within `180 m` and an `8-degree` aim cone. Press the right mouse button to launch eight missiles directly toward the current aim point. Press the left mouse button to launch eight homing missiles only when an enemy has been locked. The left-button salvo uses the last valid locked enemy; if there is no lock, it does not fire. The lock is cleared when the target is destroyed or removed.
+
+When a target is locked, an orange four-corner `LOCKED` reticle follows the target on screen. If the target moves outside the center of the view, the reticle clamps to the nearest screen edge so the player can still see the lock direction.
 
 In normal dual-hand mode, the default `STRIKE GROUP` maps the left mouse button to the direct-fire rocket launcher and the right mouse button to the machine gun. The repair bot can switch to `SUPPORT GROUP`, which swaps those left/right assignments.
 
@@ -231,6 +234,10 @@ Press `Esc` during gameplay to open the settings menu. It pauses the combat scen
 - `GAMEPLAY`: mouse X/Y sensitivity and inverted vertical aim.
 
 Settings are saved to `user://mech_settings.cfg`. Upgrade data is stored separately in `user://mech_upgrade_profile.cfg`. There is currently no campaign save-slot system, inventory save, or mission progression save.
+
+### Resolution-Aware UI
+
+The gameplay HUD is authored on a centered `1280x720` design canvas and scales down uniformly when the viewport is smaller. The settings and repair-bot panels also recalculate their scale whenever the window size changes, keeping their controls inside the available viewport at the project's minimum window size and common desktop resolutions.
 
 ## Visual Effects Documentation
 

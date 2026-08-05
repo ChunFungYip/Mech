@@ -180,6 +180,7 @@ The HUD is also part of the combat presentation. It currently shows:
 - Machine-gun and rocket ammunition.
 - Selected weapon group.
 - Missile lock state.
+- Target-following missile lock brackets and a `LOCKED` indicator, clamped to the viewport edge when the target is off-center.
 - Six locked-enemy component HP bars.
 - Enemy wave, contact count, and confirmed kills.
 - Combat announcements such as enemy destruction, overheat, and missile launches.

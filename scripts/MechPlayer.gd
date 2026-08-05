@@ -650,6 +650,19 @@ func get_locked_enemy() -> Node3D:
         return _missile_lock_target
     return null
 
+func get_locked_enemy_screen_position() -> Vector2:
+    if current_weapon != WeaponMode.MISSILE_POD or not is_instance_valid(_missile_lock_target):
+        return Vector2(-1.0, -1.0)
+    var camera: Camera3D = _first_person_camera if first_person else _third_person_camera
+    var target_position: Vector3 = _missile_lock_target.global_position + Vector3(0.0, 2.2, 0.0)
+    if camera.is_position_behind(target_position):
+        return Vector2(-1.0, -1.0)
+    var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+    if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+        return Vector2(-1.0, -1.0)
+    var screen_position: Vector2 = camera.unproject_position(target_position)
+    return Vector2(screen_position.x / viewport_size.x, screen_position.y / viewport_size.y)
+
 func repair_full() -> void:
     health = health_max
     announcement.emit("REPAIR BOT // ARMOR RESTORED")

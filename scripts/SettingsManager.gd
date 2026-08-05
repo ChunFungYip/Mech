@@ -36,7 +36,7 @@ func load_settings() -> void:
     master_volume = clampf(float(config.get_value("audio", "master_volume", DEFAULT_MASTER_VOLUME)), 0.0, 1.0)
     mouse_sensitivity_x = clampf(float(config.get_value("gameplay", "mouse_sensitivity_x", DEFAULT_MOUSE_SENSITIVITY_X)), 0.0005, 0.01)
     mouse_sensitivity_y = clampf(float(config.get_value("gameplay", "mouse_sensitivity_y", DEFAULT_MOUSE_SENSITIVITY_Y)), 0.0005, 0.01)
-    mouse_invert_y = bool(config.get_value("gameplay", "mouse_invert_y", DEFAULT_MOUSE_INVERT_Y))
+    mouse_invert_y = config.get_value("gameplay", "mouse_invert_y", DEFAULT_MOUSE_INVERT_Y) == true
     _apply_all_settings()
 
 func save_settings() -> void:

@@ -52,335 +52,335 @@ const RANDOM_CITY_SPAWN_Z_MIN: float = -56.0
 const RANDOM_CITY_SPAWN_Z_MAX: float = 16.0
 
 func _ready() -> void:
-    _build_environment()
-    district = HongKongDistrictScript.new()
-    district.name = "MongKokDistrict"
-    add_child(district)
-    district.call("build", 2407)
-    _spawn_home_base()
-    _build_random_city_spawn_points()
-    _spawn_player()
-    _spawn_boss()
-    _spawn_hud()
-    _spawn_settings_menu()
-    _spawn_repair_bot_menu()
-    _spawn_repair_bot()
-    _spawn_wave()
+	_build_environment()
+	district = HongKongDistrictScript.new()
+	district.name = "MongKokDistrict"
+	add_child(district)
+	district.call("build", 2407)
+	_spawn_home_base()
+	_build_random_city_spawn_points()
+	_spawn_player()
+	_spawn_boss()
+	_spawn_hud()
+	_spawn_settings_menu()
+	_spawn_repair_bot_menu()
+	_spawn_repair_bot()
+	_spawn_wave()
 
 func _build_environment() -> void:
-    var world_environment := WorldEnvironment.new()
-    var environment := Environment.new()
-    environment.background_mode = Environment.BG_COLOR
-    environment.background_color = Color(0.012, 0.020, 0.045)
-    environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    environment.ambient_light_color = Color(0.24, 0.32, 0.48)
-    environment.ambient_light_energy = 0.72
-    environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-    world_environment.environment = environment
-    add_child(world_environment)
+	var world_environment := WorldEnvironment.new()
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color(0.012, 0.020, 0.045)
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color(0.24, 0.32, 0.48)
+	environment.ambient_light_energy = 0.72
+	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	world_environment.environment = environment
+	add_child(world_environment)
 
-    var moon := DirectionalLight3D.new()
-    moon.rotation_degrees = Vector3(-56.0, -28.0, 0.0)
-    moon.light_color = Color(0.42, 0.54, 0.78)
-    moon.light_energy = 0.9
-    moon.shadow_enabled = true
-    add_child(moon)
+	var moon := DirectionalLight3D.new()
+	moon.rotation_degrees = Vector3(-56.0, -28.0, 0.0)
+	moon.light_color = Color(0.42, 0.54, 0.78)
+	moon.light_energy = 0.9
+	moon.shadow_enabled = true
+	add_child(moon)
 
-    var rim_light := DirectionalLight3D.new()
-    rim_light.rotation_degrees = Vector3(-20.0, 148.0, 0.0)
-    rim_light.light_color = Color(0.95, 0.25, 0.13)
-    rim_light.light_energy = 0.20
-    rim_light.shadow_enabled = false
-    add_child(rim_light)
+	var rim_light := DirectionalLight3D.new()
+	rim_light.rotation_degrees = Vector3(-20.0, 148.0, 0.0)
+	rim_light.light_color = Color(0.95, 0.25, 0.13)
+	rim_light.light_energy = 0.20
+	rim_light.shadow_enabled = false
+	add_child(rim_light)
 
 func _spawn_player() -> void:
-    player = MechPlayerScript.new()
-    player.name = "HK05Titan"
-    add_child(player)
-    player.global_position = PLAYER_SPAWN_POSITION
-    player.call("setup", self)
+	player = MechPlayerScript.new()
+	player.name = "HK05Titan"
+	add_child(player)
+	player.global_position = PLAYER_SPAWN_POSITION
+	player.call("setup", self)
 
 func _spawn_home_base() -> void:
-    home_base = HomeBaseScript.new()
-    home_base.name = "TitanHomeBase"
-    add_child(home_base)
-    home_base.call("build")
+	home_base = HomeBaseScript.new()
+	home_base.name = "TitanHomeBase"
+	add_child(home_base)
+	home_base.call("build")
 
 func _spawn_boss() -> void:
-    boss = BossMechScript.new()
-    boss.name = "CentralMarketSiegeBoss"
-    add_child(boss)
-    boss.global_position = BOSS_CENTER_POSITION
-    boss.call("setup", self, player)
-    boss.connect("defeated", Callable(self, "_on_boss_defeated"))
+	boss = BossMechScript.new()
+	boss.name = "CentralMarketSiegeBoss"
+	add_child(boss)
+	boss.global_position = BOSS_CENTER_POSITION
+	boss.call("setup", self, player)
+	boss.connect("defeated", Callable(self, "_on_boss_defeated"))
 
 func _spawn_wave() -> void:
-    var spawn_positions: Array[Vector3] = [
-        Vector3(-10.0, 0.0, -12.0),
-        Vector3(11.0, 0.0, -24.0),
-        Vector3(-12.0, 0.0, -39.0),
-        Vector3(13.0, 0.0, -53.0)
-    ]
-    if wave >= 2:
-        spawn_positions.append(Vector3(0.0, 0.0, -59.0))
-    if wave >= 3:
-        spawn_positions.append(Vector3(-6.0, 0.0, -47.0))
-    var spawn_types: Array[int] = [
-        ENEMY_TYPE_HEAVY,
-        ENEMY_TYPE_SCOUT,
-        ENEMY_TYPE_DRONE,
-        ENEMY_TYPE_SPIDER,
-    ]
-    if wave >= 2:
-        spawn_types.append(ENEMY_TYPE_SCOUT)
-    if wave >= 3:
-        spawn_types.append(ENEMY_TYPE_DRONE)
-    for index in spawn_positions.size():
-        var enemy_type := spawn_types[index % spawn_types.size()]
-        _spawn_enemy(spawn_positions[index], "WAVE_%02d" % wave, enemy_type)
-    _wave_clear_announced = false
+	var spawn_positions: Array[Vector3] = [
+		Vector3(-10.0, 0.0, -12.0),
+		Vector3(11.0, 0.0, -24.0),
+		Vector3(-12.0, 0.0, -39.0),
+		Vector3(13.0, 0.0, -53.0)
+	]
+	if wave >= 2:
+		spawn_positions.append(Vector3(0.0, 0.0, -59.0))
+	if wave >= 3:
+		spawn_positions.append(Vector3(-6.0, 0.0, -47.0))
+	var spawn_types: Array[int] = [
+		ENEMY_TYPE_HEAVY,
+		ENEMY_TYPE_SCOUT,
+		ENEMY_TYPE_DRONE,
+		ENEMY_TYPE_SPIDER,
+	]
+	if wave >= 2:
+		spawn_types.append(ENEMY_TYPE_SCOUT)
+	if wave >= 3:
+		spawn_types.append(ENEMY_TYPE_DRONE)
+	for index in spawn_positions.size():
+		var enemy_type := spawn_types[index % spawn_types.size()]
+		_spawn_enemy(spawn_positions[index], "WAVE_%02d" % wave, enemy_type)
+	_wave_clear_announced = false
 
 func _process(delta: float) -> void:
-    _update_boss_area()
-    _update_home_base_door()
-    _check_random_city_spawn_points()
-    if get_enemy_count() == 0:
-        if not _wave_clear_announced:
-            _wave_clear_announced = true
-            _next_wave_timer = 2.5
-            if hud != null and hud.has_method("_on_announcement"):
-                hud.call("_on_announcement", "MARKET APPROACH CLEAR // NEXT WAVE INBOUND")
-        else:
-            _next_wave_timer -= delta
-            if _next_wave_timer <= 0.0:
-                wave += 1
-                _spawn_wave()
-                if hud != null and hud.has_method("_on_announcement"):
-                    hud.call("_on_announcement", "HOSTILE WAVE %02d // ENGAGE" % wave)
+	_update_boss_area()
+	_update_home_base_door()
+	_check_random_city_spawn_points()
+	if get_enemy_count() == 0:
+		if not _wave_clear_announced:
+			_wave_clear_announced = true
+			_next_wave_timer = 2.5
+			if hud != null and hud.has_method("_on_announcement"):
+				hud.call("_on_announcement", "MARKET APPROACH CLEAR // NEXT WAVE INBOUND")
+		else:
+			_next_wave_timer -= delta
+			if _next_wave_timer <= 0.0:
+				wave += 1
+				_spawn_wave()
+				if hud != null and hud.has_method("_on_announcement"):
+					hud.call("_on_announcement", "HOSTILE WAVE %02d // ENGAGE" % wave)
 
 func _update_home_base_door() -> void:
-    if home_base == null or not is_instance_valid(player):
-        return
-    if home_base.has_method("update_hangar_door"):
-        home_base.call("update_hangar_door", player.global_position)
+	if home_base == null or not is_instance_valid(player):
+		return
+	if home_base.has_method("update_hangar_door"):
+		home_base.call("update_hangar_door", player.global_position)
 
 func _update_boss_area() -> void:
-    if boss == null or not is_instance_valid(boss) or player == null or not is_instance_valid(player):
-        _boss_area_active = false
-        return
-    var player_distance := Vector2(player.global_position.x, player.global_position.z).distance_to(Vector2(BOSS_CENTER_POSITION.x, BOSS_CENTER_POSITION.z))
-    var inside_area := player_distance <= BOSS_AREA_RADIUS
-    if inside_area and not _boss_area_active:
-        _boss_area_active = true
-        if boss.has_method("activate"):
-            boss.call("activate")
-        if hud != null and hud.has_method("_on_announcement"):
-            hud.call("_on_announcement", "CENTRAL MARKET // SIEGE BOSS ENGAGED")
-    elif not inside_area:
-        _boss_area_active = false
+	if boss == null or not is_instance_valid(boss) or player == null or not is_instance_valid(player):
+		_boss_area_active = false
+		return
+	var player_distance := Vector2(player.global_position.x, player.global_position.z).distance_to(Vector2(BOSS_CENTER_POSITION.x, BOSS_CENTER_POSITION.z))
+	var inside_area := player_distance <= BOSS_AREA_RADIUS
+	if inside_area and not _boss_area_active:
+		_boss_area_active = true
+		if boss.has_method("activate"):
+			boss.call("activate")
+		if hud != null and hud.has_method("_on_announcement"):
+			hud.call("_on_announcement", "CENTRAL MARKET // SIEGE BOSS ENGAGED")
+	elif not inside_area:
+		_boss_area_active = false
 
 func _build_random_city_spawn_points() -> void:
-    _spawn_rng.randomize()
-    _city_spawn_points.clear()
-    _city_spawn_triggered.clear()
-    var attempts := 0
-    while _city_spawn_points.size() < RANDOM_CITY_SPAWN_POINT_COUNT and attempts < 200:
-        attempts += 1
-        var candidate := Vector3(
-            _spawn_rng.randf_range(RANDOM_CITY_SPAWN_X_MIN, RANDOM_CITY_SPAWN_X_MAX),
-            0.0,
-            _spawn_rng.randf_range(RANDOM_CITY_SPAWN_Z_MIN, RANDOM_CITY_SPAWN_Z_MAX))
-        if _horizontal_distance_from_player_spawn(candidate) < MIN_ENEMY_SPAWN_DISTANCE_FROM_PLAYER + RANDOM_ENCOUNTER_MAX_SPAWN_OFFSET:
-            continue
-        var separated := true
-        for existing_point in _city_spawn_points:
-            if candidate.distance_to(existing_point) < RANDOM_CITY_SPAWN_MIN_SEPARATION:
-                separated = false
-                break
-        if separated:
-            _city_spawn_points.append(candidate)
-            _city_spawn_triggered.append(false)
+	_spawn_rng.randomize()
+	_city_spawn_points.clear()
+	_city_spawn_triggered.clear()
+	var attempts := 0
+	while _city_spawn_points.size() < RANDOM_CITY_SPAWN_POINT_COUNT and attempts < 200:
+		attempts += 1
+		var candidate := Vector3(
+			_spawn_rng.randf_range(RANDOM_CITY_SPAWN_X_MIN, RANDOM_CITY_SPAWN_X_MAX),
+			0.0,
+			_spawn_rng.randf_range(RANDOM_CITY_SPAWN_Z_MIN, RANDOM_CITY_SPAWN_Z_MAX))
+		if _horizontal_distance_from_player_spawn(candidate) < MIN_ENEMY_SPAWN_DISTANCE_FROM_PLAYER + RANDOM_ENCOUNTER_MAX_SPAWN_OFFSET:
+			continue
+		var separated := true
+		for existing_point in _city_spawn_points:
+			if candidate.distance_to(existing_point) < RANDOM_CITY_SPAWN_MIN_SEPARATION:
+				separated = false
+				break
+		if separated:
+			_city_spawn_points.append(candidate)
+			_city_spawn_triggered.append(false)
 
 func _check_random_city_spawn_points() -> void:
-    if not is_instance_valid(player):
-        return
-    for point_index in _city_spawn_points.size():
-        if _city_spawn_triggered[point_index]:
-            continue
-        if player.global_position.distance_to(_city_spawn_points[point_index]) > RANDOM_CITY_SPAWN_TRIGGER_DISTANCE:
-            continue
-        _city_spawn_triggered[point_index] = true
-        _spawn_random_city_encounter(point_index, _city_spawn_points[point_index])
+	if not is_instance_valid(player):
+		return
+	for point_index in _city_spawn_points.size():
+		if _city_spawn_triggered[point_index]:
+			continue
+		if player.global_position.distance_to(_city_spawn_points[point_index]) > RANDOM_CITY_SPAWN_TRIGGER_DISTANCE:
+			continue
+		_city_spawn_triggered[point_index] = true
+		_spawn_random_city_encounter(point_index, _city_spawn_points[point_index])
 
 func _spawn_random_city_encounter(point_index: int, center: Vector3) -> void:
-    _random_encounters_triggered += 1
-    var enemy_count := _spawn_rng.randi_range(RANDOM_CITY_SPAWN_MIN_ENEMIES, RANDOM_CITY_SPAWN_MAX_ENEMIES)
-    for enemy_index in enemy_count:
-        var angle := _spawn_rng.randf_range(0.0, TAU)
-        var radius := _spawn_rng.randf_range(1.5, 4.0)
-        var spawn_position := center + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
-        spawn_position.x = clampf(spawn_position.x, RANDOM_CITY_SPAWN_X_MIN - 1.5, RANDOM_CITY_SPAWN_X_MAX + 1.5)
-        spawn_position.z = clampf(spawn_position.z, RANDOM_CITY_SPAWN_Z_MIN - 1.5, RANDOM_CITY_SPAWN_Z_MAX + 1.5)
-        var enemy_type := _spawn_rng.randi_range(ENEMY_TYPE_HEAVY, ENEMY_TYPE_SPIDER)
-        _spawn_enemy(spawn_position, "AMBUSH_%02d" % _random_encounters_triggered, enemy_type)
-    if hud != null and hud.has_method("_on_announcement"):
-        hud.call("_on_announcement", "CITY AMBUSH // POINT %02d // %02d HOSTILES" % [_random_encounters_triggered, enemy_count])
+	_random_encounters_triggered += 1
+	var enemy_count := _spawn_rng.randi_range(RANDOM_CITY_SPAWN_MIN_ENEMIES, RANDOM_CITY_SPAWN_MAX_ENEMIES)
+	for enemy_index in enemy_count:
+		var angle := _spawn_rng.randf_range(0.0, TAU)
+		var radius := _spawn_rng.randf_range(1.5, 4.0)
+		var spawn_position := center + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
+		spawn_position.x = clampf(spawn_position.x, RANDOM_CITY_SPAWN_X_MIN - 1.5, RANDOM_CITY_SPAWN_X_MAX + 1.5)
+		spawn_position.z = clampf(spawn_position.z, RANDOM_CITY_SPAWN_Z_MIN - 1.5, RANDOM_CITY_SPAWN_Z_MAX + 1.5)
+		var enemy_type := _spawn_rng.randi_range(ENEMY_TYPE_HEAVY, ENEMY_TYPE_SPIDER)
+		_spawn_enemy(spawn_position, "AMBUSH_%02d" % _random_encounters_triggered, enemy_type)
+	if hud != null and hud.has_method("_on_announcement"):
+		hud.call("_on_announcement", "CITY AMBUSH // POINT %02d // %02d HOSTILES" % [_random_encounters_triggered, enemy_count])
 
 func _spawn_enemy(spawn_position: Vector3, encounter_name: String, enemy_type: int = ENEMY_TYPE_HEAVY) -> void:
-    _enemy_spawn_serial += 1
-    var enemy: Node3D = EnemyMechScript.new()
-    enemy.enemy_type = enemy_type
-    enemy.name = "%s_%s_%03d" % [_enemy_type_name(enemy_type), encounter_name, _enemy_spawn_serial]
-    add_child(enemy)
-    if _horizontal_distance_from_player_spawn(spawn_position) < MIN_ENEMY_SPAWN_DISTANCE_FROM_PLAYER:
-        var away_direction := Vector3(spawn_position.x - PLAYER_SPAWN_POSITION.x, 0.0, spawn_position.z - PLAYER_SPAWN_POSITION.z)
-        if away_direction.length_squared() < 0.001:
-            away_direction = Vector3(0.0, 0.0, -1.0)
-        spawn_position = PLAYER_SPAWN_POSITION + away_direction.normalized() * MIN_ENEMY_SPAWN_DISTANCE_FROM_PLAYER
-    if enemy_type == ENEMY_TYPE_DRONE:
-        spawn_position.y = maxf(spawn_position.y, 6.5)
-    enemy.global_position = spawn_position
-    enemy.call("setup", self, player)
-    enemy.connect("died", Callable(self, "_on_enemy_died"))
+	_enemy_spawn_serial += 1
+	var enemy: Node3D = EnemyMechScript.new()
+	enemy.enemy_type = enemy_type
+	enemy.name = "%s_%s_%03d" % [_enemy_type_name(enemy_type), encounter_name, _enemy_spawn_serial]
+	add_child(enemy)
+	if _horizontal_distance_from_player_spawn(spawn_position) < MIN_ENEMY_SPAWN_DISTANCE_FROM_PLAYER:
+		var away_direction := Vector3(spawn_position.x - PLAYER_SPAWN_POSITION.x, 0.0, spawn_position.z - PLAYER_SPAWN_POSITION.z)
+		if away_direction.length_squared() < 0.001:
+			away_direction = Vector3(0.0, 0.0, -1.0)
+		spawn_position = PLAYER_SPAWN_POSITION + away_direction.normalized() * MIN_ENEMY_SPAWN_DISTANCE_FROM_PLAYER
+	if enemy_type == ENEMY_TYPE_DRONE:
+		spawn_position.y = maxf(spawn_position.y, 6.5)
+	enemy.global_position = spawn_position
+	enemy.call("setup", self, player)
+	enemy.connect("died", Callable(self, "_on_enemy_died"))
 
 func _horizontal_distance_from_player_spawn(position: Vector3) -> float:
-    return Vector2(position.x, position.z).distance_to(Vector2(PLAYER_SPAWN_POSITION.x, PLAYER_SPAWN_POSITION.z))
+	return Vector2(position.x, position.z).distance_to(Vector2(PLAYER_SPAWN_POSITION.x, PLAYER_SPAWN_POSITION.z))
 
 func _enemy_type_name(enemy_type: int) -> String:
-    match enemy_type:
-        ENEMY_TYPE_SCOUT:
-            return "SCOUT"
-        ENEMY_TYPE_DRONE:
-            return "DRONE"
-        ENEMY_TYPE_SPIDER:
-            return "SPIDER"
-    return "HEAVY"
+	match enemy_type:
+		ENEMY_TYPE_SCOUT:
+			return "SCOUT"
+		ENEMY_TYPE_DRONE:
+			return "DRONE"
+		ENEMY_TYPE_SPIDER:
+			return "SPIDER"
+	return "HEAVY"
 
 func _on_boss_defeated(_defeated_boss: Node) -> void:
-    UpgradeManager.add_credits(1000)
-    if hud != null and hud.has_method("_on_announcement"):
-        hud.call("_on_announcement", "CENTRAL MARKET // SIEGE BOSS DESTROYED // +1000 CREDITS")
+	UpgradeManager.add_credits(1000)
+	if hud != null and hud.has_method("_on_announcement"):
+		hud.call("_on_announcement", "CENTRAL MARKET // SIEGE BOSS DESTROYED // +1000 CREDITS")
 
 func _spawn_hud() -> void:
-    hud = GameHUDScript.new()
-    add_child(hud)
-    hud.call("setup", player, self)
+	hud = GameHUDScript.new()
+	add_child(hud)
+	hud.call("setup", player, self)
 
 func _spawn_settings_menu() -> void:
-    settings_menu = SettingsMenuScript.new()
-    settings_menu.name = "SettingsMenu"
-    add_child(settings_menu)
+	settings_menu = SettingsMenuScript.new()
+	settings_menu.name = "SettingsMenu"
+	add_child(settings_menu)
 
 func _spawn_repair_bot_menu() -> void:
-    repair_bot_menu = RepairBotMenuScript.new()
-    repair_bot_menu.name = "RepairBotMenu"
-    add_child(repair_bot_menu)
+	repair_bot_menu = RepairBotMenuScript.new()
+	repair_bot_menu.name = "RepairBotMenu"
+	add_child(repair_bot_menu)
 
 func _spawn_repair_bot() -> void:
-    repair_bot = RepairBotScript.new()
-    repair_bot.name = "RepairBot"
-    add_child(repair_bot)
-    repair_bot.global_position = Vector3(5.6, 0.0, 45.0)
-    repair_bot.call("setup", self, player)
+	repair_bot = RepairBotScript.new()
+	repair_bot.name = "RepairBot"
+	add_child(repair_bot)
+	repair_bot.global_position = Vector3(5.6, 0.0, 45.0)
+	repair_bot.call("setup", self, player)
 
 func open_repair_bot() -> void:
-    if repair_bot_menu != null and repair_bot_menu.has_method("open_menu"):
-        repair_bot_menu.call("open_menu", player)
+	if repair_bot_menu != null and repair_bot_menu.has_method("open_menu"):
+		repair_bot_menu.call("open_menu", player)
 
 func get_enemy_count() -> int:
-    var count := 0
-    for enemy in get_tree().get_nodes_in_group("enemy_mechs"):
-        if not bool(enemy.get("is_boss")):
-            count += 1
-    return count
+	var count := 0
+	for enemy in get_tree().get_nodes_in_group("enemy_mechs"):
+		if enemy.get("is_boss") != true:
+			count += 1
+	return count
 
 func get_boss() -> Node:
-    return boss
+	return boss
 
 func is_boss_area_active() -> bool:
-    return _boss_area_active
+	return _boss_area_active
 
 func _on_enemy_died(_enemy: Node) -> void:
-    kills += 1
-    UpgradeManager.add_credits(100)
-    if hud != null and hud.has_method("_on_announcement"):
-        hud.call("_on_announcement", "HOSTILE DISABLED // CONFIRMED %02d // +100 CREDITS" % kills)
+	kills += 1
+	UpgradeManager.add_credits(100)
+	if hud != null and hud.has_method("_on_announcement"):
+		hud.call("_on_announcement", "HOSTILE DISABLED // CONFIRMED %02d // +100 CREDITS" % kills)
 
 func spawn_player_rocket(origin: Vector3, direction: Vector3, shooter: Node, damage: float = 110.0, explosion_radius: float = 5.0) -> void:
-    var rocket: Node3D = RocketProjectileScript.new()
-    add_child(rocket)
-    rocket.call("setup", self, shooter, origin, direction, &"enemy_mechs", damage, explosion_radius)
+	var rocket: Node3D = RocketProjectileScript.new()
+	add_child(rocket)
+	rocket.call("setup", self, shooter, origin, direction, &"enemy_mechs", damage, explosion_radius)
 
 func spawn_player_missile_salvo(origin: Vector3, direction: Vector3, shooter: Node, target: Node3D, damage: float = 46.0, explosion_radius: float = 2.8) -> void:
-    var side := direction.cross(Vector3.UP).normalized()
-    if side.length_squared() < 0.001:
-        side = Vector3.RIGHT
-    var up := side.cross(direction).normalized()
-    var launch_offsets: Array[Vector2] = [
-        Vector2(-0.72, 0.18),
-        Vector2(-0.48, 0.18),
-        Vector2(-0.24, 0.18),
-        Vector2(0.00, 0.18),
-        Vector2(0.24, -0.18),
-        Vector2(0.48, -0.18),
-        Vector2(0.72, -0.18),
-        Vector2(0.00, -0.42),
-    ]
-    for offset in launch_offsets:
-        var missile: Node3D = HomingMissileScript.new()
-        add_child(missile)
-        var launch_position := origin + side * offset.x + up * offset.y
-        var launch_direction := (direction + side * offset.x * 0.045 + up * offset.y * 0.045).normalized()
-        missile.call("setup", self, shooter, launch_position, launch_direction, target, damage, explosion_radius)
+	var side := direction.cross(Vector3.UP).normalized()
+	if side.length_squared() < 0.001:
+		side = Vector3.RIGHT
+	var up := side.cross(direction).normalized()
+	var launch_offsets: Array[Vector2] = [
+		Vector2(-0.72, 0.18),
+		Vector2(-0.48, 0.18),
+		Vector2(-0.24, 0.18),
+		Vector2(0.00, 0.18),
+		Vector2(0.24, -0.18),
+		Vector2(0.48, -0.18),
+		Vector2(0.72, -0.18),
+		Vector2(0.00, -0.42),
+	]
+	for offset in launch_offsets:
+		var missile: Node3D = HomingMissileScript.new()
+		add_child(missile)
+		var launch_position := origin + side * offset.x + up * offset.y
+		var launch_direction := (direction + side * offset.x * 0.045 + up * offset.y * 0.045).normalized()
+		missile.call("setup", self, shooter, launch_position, launch_direction, target, damage, explosion_radius)
 
 func spawn_tracer(start: Vector3, finish: Vector3, color: Color) -> void:
-    var difference := finish - start
-    if difference.length_squared() < 0.0001:
-        return
-    var tracer := MeshInstance3D.new()
-    var mesh := BoxMesh.new()
-    mesh.size = Vector3(0.055, 0.055, difference.length())
-    tracer.mesh = mesh
-    tracer.position = (start + finish) * 0.5
-    var material := StandardMaterial3D.new()
-    material.albedo_color = color
-    material.emission_enabled = true
-    material.emission = color
-    material.emission_energy_multiplier = 4.0
-    material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-    tracer.material_override = material
-    add_child(tracer)
-    tracer.look_at_from_position(tracer.position, finish, Vector3.UP)
-    get_tree().create_timer(0.075).timeout.connect(Callable(tracer, "queue_free"))
+	var difference := finish - start
+	if difference.length_squared() < 0.0001:
+		return
+	var tracer := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.055, 0.055, difference.length())
+	tracer.mesh = mesh
+	tracer.position = (start + finish) * 0.5
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.emission_enabled = true
+	material.emission = color
+	material.emission_energy_multiplier = 4.0
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tracer.material_override = material
+	add_child(tracer)
+	tracer.look_at_from_position(tracer.position, finish, Vector3.UP)
+	get_tree().create_timer(0.075).timeout.connect(Callable(tracer, "queue_free"))
 
 func spawn_hit_spark(position: Vector3) -> void:
-    spawn_explosion(position, 0.42, Color(1.0, 0.78, 0.24))
+	spawn_explosion(position, 0.42, Color(1.0, 0.78, 0.24))
 
 func spawn_explosion(position: Vector3, radius: float, color: Color = Color(1.0, 0.34, 0.05)) -> void:
-    var flash := MeshInstance3D.new()
-    var mesh := SphereMesh.new()
-    mesh.radius = 0.25
-    mesh.height = 0.5
-    flash.mesh = mesh
-    flash.position = position
-    var material := StandardMaterial3D.new()
-    material.albedo_color = color
-    material.emission_enabled = true
-    material.emission = color
-    material.emission_energy_multiplier = 5.0
-    material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-    flash.material_override = material
-    add_child(flash)
+	var flash := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.25
+	mesh.height = 0.5
+	flash.mesh = mesh
+	flash.position = position
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.emission_enabled = true
+	material.emission = color
+	material.emission_energy_multiplier = 5.0
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	flash.material_override = material
+	add_child(flash)
 
-    var light := OmniLight3D.new()
-    light.position = position
-    light.light_color = color
-    light.light_energy = 5.0
-    light.omni_range = maxf(radius * 2.0, 2.0)
-    light.shadow_enabled = false
-    add_child(light)
+	var light := OmniLight3D.new()
+	light.position = position
+	light.light_color = color
+	light.light_energy = 5.0
+	light.omni_range = maxf(radius * 2.0, 2.0)
+	light.shadow_enabled = false
+	add_child(light)
 
-    var tween := create_tween()
-    tween.tween_property(flash, "scale", Vector3.ONE * maxf(radius * 0.32, 0.9), 0.16)
-    tween.tween_callback(Callable(flash, "queue_free"))
-    get_tree().create_timer(0.22).timeout.connect(Callable(light, "queue_free"))
+	var tween := create_tween()
+	tween.tween_property(flash, "scale", Vector3.ONE * maxf(radius * 0.32, 0.9), 0.16)
+	tween.tween_callback(Callable(flash, "queue_free"))
+	get_tree().create_timer(0.22).timeout.connect(Callable(light, "queue_free"))

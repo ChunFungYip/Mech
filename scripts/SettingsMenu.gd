@@ -16,12 +16,16 @@ var _sensitivity_y_slider: HSlider
 var _sensitivity_y_value: Label
 var _invert_y_button: CheckButton
 var _window_mode_option: OptionButton
+var _settings_panel: ColorRect
+const SETTINGS_PANEL_SIZE := Vector2(760.0, 570.0)
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
     layer = 30
     _build_ui()
     _menu_root.visible = false
+    get_viewport().size_changed.connect(_update_responsive_layout)
+    _update_responsive_layout()
 
 func _build_ui() -> void:
     _menu_root = Control.new()
@@ -41,11 +45,12 @@ func _build_ui() -> void:
     center.mouse_filter = Control.MOUSE_FILTER_IGNORE
     _menu_root.add_child(center)
 
-    var panel := ColorRect.new()
-    panel.custom_minimum_size = Vector2(760.0, 570.0)
-    panel.color = Color(0.018, 0.040, 0.060, 0.98)
-    panel.mouse_filter = Control.MOUSE_FILTER_STOP
-    center.add_child(panel)
+    _settings_panel = ColorRect.new()
+    _settings_panel.custom_minimum_size = SETTINGS_PANEL_SIZE
+    _settings_panel.color = Color(0.018, 0.040, 0.060, 0.98)
+    _settings_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+    center.add_child(_settings_panel)
+    var panel := _settings_panel
 
     var accent := ColorRect.new()
     accent.position = Vector2(0.0, 0.0)
@@ -100,6 +105,15 @@ func _build_ui() -> void:
     footer.add_child(resume_button)
 
     _add_label(panel, "Changes save automatically to user://mech_settings.cfg", Vector2(36.0, 548.0), Vector2(430.0, 18.0), 11, Color(0.46, 0.56, 0.58))
+
+func _update_responsive_layout() -> void:
+    if _settings_panel == null:
+        return
+    var viewport_size := get_viewport().get_visible_rect().size - Vector2(32.0, 32.0)
+    var fit_scale := minf(viewport_size.x / SETTINGS_PANEL_SIZE.x, viewport_size.y / SETTINGS_PANEL_SIZE.y)
+    fit_scale = minf(fit_scale, 1.0)
+    _settings_panel.pivot_offset = SETTINGS_PANEL_SIZE * 0.5
+    _settings_panel.scale = Vector2.ONE * fit_scale
 
 func _build_display_page() -> void:
     var page := _new_page()
@@ -315,7 +329,7 @@ func toggle_menu() -> void:
 func _unhandled_input(event: InputEvent) -> void:
     if event.is_action_pressed("pause_menu"):
         for repair_menu in get_tree().get_nodes_in_group("repair_bot_menu"):
-            if repair_menu.has_method("is_open") and bool(repair_menu.call("is_open")):
+            if repair_menu.has_method("is_open") and repair_menu.call("is_open") == true:
                 repair_menu.call("close_menu")
                 get_viewport().set_input_as_handled()
                 return
