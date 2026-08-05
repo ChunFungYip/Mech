@@ -12,6 +12,7 @@ func build(city_seed: int = 2407) -> void:
 	_build_road_details()
 	_build_buildings()
 	_build_street_props()
+	_build_authored_combat_spaces()
 	_build_lights_and_wires()
 
 func _material(color: Color, emission_energy: float = 0.0, roughness: float = 0.82) -> StandardMaterial3D:
@@ -155,6 +156,40 @@ func _build_street_props() -> void:
 	_parked_vehicle(Vector3(-7.5, 1.0, -28.0), Color(0.19, 0.24, 0.28))
 	_parked_vehicle(Vector3(8.0, 1.0, 15.0), Color(0.47, 0.16, 0.12))
 	_footbridge(43.0)
+
+func _build_authored_combat_spaces() -> void:
+	_market_plaza()
+	_tram_intersection()
+	_cargo_lane()
+
+func _market_plaza() -> void:
+	_box(Vector3(0.0, 0.095, 0.0), Vector3(24.0, 0.035, 22.0), Color(0.13, 0.11, 0.12), false)
+	_box(Vector3(-10.5, 0.9, -8.0), Vector3(2.6, 1.8, 2.0), Color(0.20, 0.12, 0.12), true)
+	_box(Vector3(10.5, 0.9, 8.0), Vector3(2.6, 1.8, 2.0), Color(0.10, 0.18, 0.20), true)
+	_neon_box(Vector3(-10.5, 2.15, -9.05), Vector3(2.2, 0.22, 0.10), Color(1.0, 0.18, 0.12), 3.5)
+	_neon_box(Vector3(10.5, 2.15, 8.95), Vector3(2.2, 0.22, 0.10), Color(0.10, 0.84, 0.94), 3.5)
+	_label("CENTRAL MARKET // SIEGE PLAZA", Vector3(0.0, 0.24, -10.2), Color(1.0, 0.40, 0.18), 34)
+	for position in [Vector3(-8.5, 0.85, 6.5), Vector3(8.5, 0.85, -6.5)]:
+		_box(position, Vector3(1.0, 1.7, 3.0), Color(0.24, 0.25, 0.25), true)
+		_box(position + Vector3(0.0, 1.15, 0.0), Vector3(1.25, 0.08, 3.25), Color(0.82, 0.22, 0.12), false, 1.2)
+
+func _tram_intersection() -> void:
+	_box(Vector3(0.0, 0.10, 32.0), Vector3(28.0, 0.04, 12.0), Color(0.16, 0.16, 0.15), false)
+	for x in [-10.0, -5.0, 0.0, 5.0, 10.0]:
+		_box(Vector3(float(x), 0.13, 32.0), Vector3(0.16, 0.02, 11.0), Color(0.52, 0.54, 0.53), false, 0.25)
+	for x in [-12.0, 12.0]:
+		_box(Vector3(float(x), 1.15, 32.0), Vector3(1.1, 2.3, 3.4), Color(0.30, 0.24, 0.21), true)
+		_neon_box(Vector3(float(x), 2.45, 30.25), Vector3(0.9, 0.18, 2.8), Color(1.0, 0.62, 0.10), 2.8)
+	_label("TRAM LOOP // PLATFORM 02", Vector3(0.0, 0.26, 36.0), Color(0.18, 0.82, 0.92), 30)
+
+func _cargo_lane() -> void:
+	for cargo_index in 4:
+		var side := -1.0 if cargo_index % 2 == 0 else 1.0
+		var cargo_z := 45.0 + float(cargo_index % 2) * 6.0
+		var cargo_position := Vector3(side * 10.0, 1.1, cargo_z)
+		_box(cargo_position, Vector3(5.0, 2.2, 3.0), Color(0.16, 0.25, 0.28) if cargo_index % 2 == 0 else Color(0.28, 0.18, 0.18), true)
+		_box(cargo_position + Vector3(0.0, 1.15, -1.55), Vector3(4.3, 0.18, 0.08), Color(0.12, 0.82, 0.88) if cargo_index % 2 == 0 else Color(0.96, 0.24, 0.10), false, 3.0)
+	_label("HARBOUR CARGO // SERVICE LANE", Vector3(0.0, 0.24, 54.0), Color(1.0, 0.68, 0.18), 30)
 
 func _streetlight(x: float, z: float, color: Color) -> void:
 	_box(Vector3(x, 3.5, z), Vector3(0.20, 7.0, 0.20), Color(0.10, 0.12, 0.14), false)

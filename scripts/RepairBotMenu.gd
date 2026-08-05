@@ -223,7 +223,7 @@ func _refresh_all() -> void:
 		_weapon_status_label.text = "CURRENT // %s\n%s" % [UpgradeManager.get_weapon_group_name(), UpgradeManager.get_weapon_group_description()]
 	if is_instance_valid(_tuning_status_label):
 		_tuning_status_label.text = "CURRENT // %s\n%s" % [UpgradeManager.get_mech_tuning_name(), UpgradeManager.get_mech_tuning_description()]
-	if is_instance_valid(_upgrade_list) and not _upgrade_refresh_queued:
+	if is_instance_valid(_upgrade_list) and _is_open and _active_page == _upgrade_page and not _upgrade_refresh_queued:
 		_upgrade_refresh_queued = true
 		call_deferred("_refresh_upgrade_list")
 

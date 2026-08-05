@@ -1,6 +1,9 @@
 extends CanvasLayer
 class_name GameHUD
 
+const RadarDisplayScript = preload("res://scripts/RadarDisplay.gd")
+const RADAR_RANGE_METERS: float = 50.0
+
 var player: Node
 var game: Node
 var _stats_label: Label
@@ -13,7 +16,15 @@ var _boss_panel: ColorRect
 var _boss_title: Label
 var _boss_health_bar: ProgressBar
 var _boss_value: Label
+var _radar: RadarDisplay
 var _lock_reticle: Control
+var _objective_label: Label
+var _damage_indicator: Label
+var _damage_indicator_time: float = 0.0
+var _hit_marker: Label
+var _hit_marker_time: float = 0.0
+var _critical_warning: Label
+var _critical_warning_phase: float = 0.0
 var _wave_label: Label
 var _view_label: Label
 var _message_label: Label
@@ -21,6 +32,9 @@ var _message_timer: float = 0.0
 var _design_root: Control
 const DESIGN_SIZE := Vector2(1280.0, 720.0)
 const LOCK_RETICLE_SIZE := Vector2(88.0, 88.0)
+const DAMAGE_INDICATOR_SIZE := Vector2(46.0, 46.0)
+const DAMAGE_INDICATOR_RADIUS: float = 92.0
+const HIT_MARKER_SIZE := Vector2(42.0, 42.0)
 
 func _ready() -> void:
 	_build_ui()
@@ -32,6 +46,10 @@ func setup(player_instance: Node, game_instance: Node) -> void:
 	game = game_instance
 	if player != null and player.has_signal("announcement"):
 		player.connect("announcement", Callable(self, "_on_announcement"))
+	if player != null and player.has_signal("damage_taken"):
+		player.connect("damage_taken", Callable(self, "_on_player_damage"))
+	if player != null and player.has_signal("weapon_hit"):
+		player.connect("weapon_hit", Callable(self, "_on_weapon_hit"))
 
 func _panel(parent: Control, position: Vector2, size: Vector2, color: Color) -> ColorRect:
 	var panel := ColorRect.new()
@@ -72,13 +90,13 @@ func _build_ui() -> void:
 	_panel(root, Vector2(24.0, 24.0), Vector2(370.0, 190.0), Color(0.018, 0.035, 0.05, 0.90))
 	_label(root, "HONGONG MECH // NEON HARBOUR", Vector2(42.0, 38.0), Vector2(340.0, 24.0), 16, Color(0.45, 0.92, 0.92))
 	_label(root, "HK-05 TITAN // COCKPIT LINK ACTIVE", Vector2(42.0, 63.0), Vector2(340.0, 20.0), 12, Color(0.70, 0.75, 0.76))
-	_stats_label = _label(root, "SPEED  000 m/s\nSPRINT  READY // SAFE 10 S\nHEALTH / ARMOR  500 / 500\nMACHINE GUN  60 / 240\nROCKET POD  06 / 12", Vector2(42.0, 88.0), Vector2(340.0, 108.0), 15, Color(1.0, 0.78, 0.35))
+	_stats_label = _label(root, "SPEED  000 m/s\nSPRINT  READY // SAFE 10 S\nHEALTH / ARMOR  500 / 500\nMACHINE GUN  60 / 240\nROCKET POD  06 / 12\nEMP PULSE  READY", Vector2(42.0, 88.0), Vector2(340.0, 126.0), 15, Color(1.0, 0.78, 0.35))
 
 	_panel(root, Vector2(24.0, 222.0), Vector2(370.0, 42.0), Color(0.018, 0.035, 0.05, 0.86))
 	_weapon_status_label = _label(root, "WEAPON // DUAL HANDS // L ROCKET // R MG", Vector2(42.0, 234.0), Vector2(340.0, 20.0), 12, Color(0.42, 0.92, 0.86))
 
 	_panel(root, Vector2(420.0, 24.0), Vector2(440.0, 68.0), Color(0.018, 0.035, 0.05, 0.82))
-	_label(root, "OPERATION // HOLD THE MARKET APPROACH", Vector2(442.0, 36.0), Vector2(400.0, 22.0), 14, Color(1.0, 0.40, 0.20))
+	_objective_label = _label(root, "OBJECTIVE // EXIT HOME BASE", Vector2(442.0, 36.0), Vector2(400.0, 22.0), 14, Color(1.0, 0.40, 0.20))
 	_wave_label = _label(root, "WAVE 01 // CONTACTS 00", Vector2(442.0, 61.0), Vector2(400.0, 20.0), 12, Color(0.72, 0.82, 0.82))
 
 	_panel(root, Vector2(1022.0, 24.0), Vector2(234.0, 68.0), Color(0.018, 0.035, 0.05, 0.82))
@@ -94,6 +112,8 @@ func _build_ui() -> void:
 	crosshair.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	crosshair.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_build_lock_reticle(root)
+	_build_damage_indicator(root)
+	_build_combat_feedback(root)
 
 	_missile_lock_label = _label(root, "MISSILE LOCK // NO TARGET // AIM POINT FIRE", Vector2.ZERO, Vector2(540.0, 26.0), 13, Color(1.0, 0.36, 0.14))
 	_missile_lock_label.set_anchors_preset(Control.PRESET_CENTER)
@@ -105,9 +125,10 @@ func _build_ui() -> void:
 	_missile_lock_label.visible = false
 	_build_target_part_panel(root)
 	_build_boss_panel(root)
+	_build_radar(root)
 
 	_panel(root, Vector2(24.0, 642.0), Vector2(580.0, 52.0), Color(0.018, 0.035, 0.05, 0.78))
-	_label(root, "WASD MOVE   SHIFT SPRINT   LMB L-WEAPON   RMB R-WEAPON   E TALK   3 MISSILES", Vector2(42.0, 658.0), Vector2(550.0, 24.0), 9, Color(0.72, 0.78, 0.78))
+	_label(root, "WASD MOVE   SHIFT SPRINT   LMB/RMB WEAPONS   Q EMP   E TALK   3 MISSILES", Vector2(42.0, 658.0), Vector2(550.0, 24.0), 9, Color(0.72, 0.78, 0.78))
 
 	_panel(root, Vector2(690.0, 642.0), Vector2(566.0, 52.0), Color(0.018, 0.035, 0.05, 0.78))
 	_label(root, "MONG KOK DISTRICT // 5 M PLATFORM // HOSTILES ARE LIVE", Vector2(708.0, 658.0), Vector2(530.0, 24.0), 11, Color(0.92, 0.52, 0.35))
@@ -135,7 +156,12 @@ func _process(delta: float) -> void:
 	var rocket_ammo := int(player.get("rocket_ammo"))
 	var rocket_reserve := int(player.get("rocket_reserve"))
 	var sprint_status := str(player.call("get_sprint_status"))
-	_stats_label.text = "SPEED  %03d m/s\nSPRINT  %s\nHEALTH / ARMOR  %03d / %03d\nMACHINE GUN  %02d / %03d\nROCKET POD  %02d / %02d" % [int(round(speed)), sprint_status, health, health_max, machinegun_ammo, machinegun_reserve, rocket_ammo, rocket_reserve]
+	_stats_label.text = "SPEED  %03d m/s\nSPRINT  %s\nHEALTH / ARMOR  %03d / %03d\nMACHINE GUN  %02d / %03d\nROCKET POD  %02d / %02d\nEMP PULSE  %s" % [int(round(speed)), sprint_status, health, health_max, machinegun_ammo, machinegun_reserve, rocket_ammo, rocket_reserve, str(player.call("get_emp_status"))]
+	var health_ratio := float(health) / maxf(float(health_max), 1.0)
+	_critical_warning.visible = health > 0 and health_ratio <= 0.25
+	if _critical_warning.visible:
+		_critical_warning_phase += delta
+		_critical_warning.modulate.a = 0.55 + (sin(_critical_warning_phase * 8.0) + 1.0) * 0.22
 	_weapon_status_label.text = "WEAPON // " + str(player.call("get_weapon_display_name")) + " // " + str(player.call("get_weapon_status"))
 	var missile_selected: bool = player.call("is_missile_pod_selected") == true
 	_missile_lock_label.visible = missile_selected
@@ -150,16 +176,19 @@ func _process(delta: float) -> void:
 		lock_center.x = clampf(lock_center.x, reticle_half.x + 8.0, DESIGN_SIZE.x - reticle_half.x - 8.0)
 		lock_center.y = clampf(lock_center.y, reticle_half.y + 8.0, DESIGN_SIZE.y - reticle_half.y - 32.0)
 		_lock_reticle.position = lock_center - reticle_half
+	_update_damage_indicator(delta)
+	_update_hit_marker(delta)
 	var boss := game.call("get_boss") as Node
-	var show_boss_health: bool = game.call("is_boss_area_active") == true and boss != null and is_instance_valid(boss) and boss.get("is_defeated") != true
+	var show_boss_health: bool = game.call("is_boss_engaged") == true and boss != null and is_instance_valid(boss) and boss.get("is_defeated") != true
 	_boss_panel.visible = show_boss_health
 	if show_boss_health:
 		var boss_health := float(boss.get("health"))
 		var boss_health_max := float(boss.get("health_max"))
-		_boss_title.text = "SIEGE CLASS // CENTRAL MARKET"
+		_boss_title.text = "SIEGE CLASS // MARKET // PHASE %02d" % int(boss.get("phase"))
 		_boss_health_bar.max_value = boss_health_max
 		_boss_health_bar.value = boss_health
 		_boss_value.text = "%04d / %04d" % [int(round(boss_health)), int(round(boss_health_max))]
+	_update_radar()
 
 	var locked_enemy := player.call("get_locked_enemy") as Node
 	var locked_boss: bool = locked_enemy != null and is_instance_valid(locked_enemy) and locked_enemy.get("is_boss") == true
@@ -170,6 +199,7 @@ func _process(delta: float) -> void:
 	var wave := int(game.get("wave"))
 	var contacts := int(game.call("get_enemy_count"))
 	var kills := int(game.get("kills"))
+	_objective_label.text = str(game.call("get_mission_objective"))
 	_wave_label.text = "WAVE %02d // CONTACTS %02d // CONFIRMED %02d" % [wave, contacts, kills]
 	_view_label.text = "VIEW // " + ("FIRST PERSON" if player.get("first_person") == true else "THIRD PERSON")
 	if _message_timer > 0.0:
@@ -180,6 +210,65 @@ func _process(delta: float) -> void:
 func _on_announcement(text: String) -> void:
 	_message_label.text = text
 	_message_timer = 2.2
+
+func _build_damage_indicator(root: Control) -> void:
+	_damage_indicator = _label(root, "▲", Vector2.ZERO, DAMAGE_INDICATOR_SIZE, 30, Color(1.0, 0.12, 0.08, 0.96))
+	_damage_indicator.position = DESIGN_SIZE * 0.5 - DAMAGE_INDICATOR_SIZE * 0.5
+	_damage_indicator.pivot_offset = DAMAGE_INDICATOR_SIZE * 0.5
+	_damage_indicator.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_damage_indicator.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_damage_indicator.visible = false
+
+func _on_player_damage(amount: float, hit_position: Vector3) -> void:
+	if SettingsManager.reduced_effects or _damage_indicator == null or player == null:
+		return
+	var direction: Vector2 = player.call("get_damage_direction_screen", hit_position)
+	if direction.length_squared() < 0.0001:
+		direction = Vector2.UP
+	_damage_indicator.rotation = Vector2.UP.angle_to(direction)
+	_damage_indicator.position = DESIGN_SIZE * 0.5 + direction * DAMAGE_INDICATOR_RADIUS - DAMAGE_INDICATOR_SIZE * 0.5
+	_damage_indicator.modulate = Color(1.0, 0.10, 0.06, 0.98)
+	_damage_indicator_time = 0.9
+	_damage_indicator.visible = true
+
+func _update_damage_indicator(delta: float) -> void:
+	if _damage_indicator == null or _damage_indicator_time <= 0.0:
+		return
+	_damage_indicator_time = maxf(_damage_indicator_time - delta, 0.0)
+	var fade := clampf(_damage_indicator_time / 0.22, 0.0, 1.0)
+	_damage_indicator.modulate.a = fade
+	_damage_indicator.visible = _damage_indicator_time > 0.0
+
+func _build_combat_feedback(root: Control) -> void:
+	_hit_marker = _label(root, "X", Vector2.ZERO, HIT_MARKER_SIZE, 28, Color(1.0, 0.82, 0.24, 0.96))
+	_hit_marker.position = DESIGN_SIZE * 0.5 - HIT_MARKER_SIZE * 0.5
+	_hit_marker.pivot_offset = HIT_MARKER_SIZE * 0.5
+	_hit_marker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hit_marker.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_hit_marker.visible = false
+
+	_critical_warning = _label(root, "CRITICAL ARMOR", Vector2.ZERO, Vector2(300.0, 30.0), 16, Color(1.0, 0.12, 0.08, 0.96))
+	_critical_warning.position = DESIGN_SIZE * 0.5 + Vector2(-150.0, -118.0)
+	_critical_warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_critical_warning.visible = false
+
+func _on_weapon_hit(part_name: String, critical: bool, destroyed: bool) -> void:
+	if _hit_marker == null:
+		return
+	_hit_marker.modulate = Color(1.0, 0.16, 0.08, 0.98) if critical else Color(1.0, 0.82, 0.24, 0.96)
+	_hit_marker_time = 0.20
+	_hit_marker.visible = true
+	if destroyed:
+		_on_announcement("PART DESTROYED // " + part_name)
+	elif critical:
+		_on_announcement("CRITICAL HIT // " + part_name)
+
+func _update_hit_marker(delta: float) -> void:
+	if _hit_marker == null or _hit_marker_time <= 0.0:
+		return
+	_hit_marker_time = maxf(_hit_marker_time - delta, 0.0)
+	_hit_marker.modulate.a = clampf(_hit_marker_time / 0.08, 0.0, 1.0)
+	_hit_marker.visible = _hit_marker_time > 0.0
 
 func _build_lock_reticle(root: Control) -> void:
 	_lock_reticle = Control.new()
@@ -280,6 +369,52 @@ func _build_boss_panel(root: Control) -> void:
 	_boss_health_bar.add_theme_stylebox_override("background", _make_bar_style(Color(0.16, 0.06, 0.07)))
 	_boss_health_bar.add_theme_stylebox_override("fill", _make_bar_style(Color(0.92, 0.10, 0.08)))
 	_boss_panel.add_child(_boss_health_bar)
+
+func _build_radar(root: Control) -> void:
+	_panel(root, Vector2(1018.0, 350.0), Vector2(238.0, 264.0), Color(0.018, 0.035, 0.05, 0.90))
+	_label(root, "RADAR // 50 M", Vector2(1034.0, 360.0), Vector2(200.0, 22.0), 13, Color(0.38, 0.94, 0.84))
+	_radar = RadarDisplayScript.new()
+	_radar.name = "EnemyRadar"
+	_radar.position = Vector2(1028.0, 382.0)
+	_radar.size = Vector2(218.0, 218.0)
+	_radar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_radar)
+
+func _update_radar() -> void:
+	if _radar == null or player == null or not is_instance_valid(player):
+		return
+	var player_node := player as Node3D
+	if player_node == null:
+		return
+	var player_yaw := float(player.get("yaw"))
+	var radar_blips: Array[Dictionary] = []
+	for candidate_variant in get_tree().get_nodes_in_group("enemy_mechs"):
+		var candidate := candidate_variant as Node3D
+		if candidate == null or not is_instance_valid(candidate):
+			continue
+		if candidate.get("is_boss") == true and candidate.get("active") != true:
+			continue
+		var world_delta := candidate.global_position - player_node.global_position
+		var flat_delta := Vector2(world_delta.x, world_delta.z)
+		var distance := flat_delta.length()
+		if distance > RADAR_RANGE_METERS:
+			continue
+		var local_delta := Vector3(world_delta.x, 0.0, world_delta.z).rotated(Vector3.UP, -player_yaw)
+		var kind := _get_radar_enemy_kind(candidate)
+		radar_blips.append({"position": Vector2(local_delta.x / RADAR_RANGE_METERS, local_delta.z / RADAR_RANGE_METERS), "kind": kind, "distance": distance})
+	_radar.set_blips(radar_blips, RADAR_RANGE_METERS)
+
+func _get_radar_enemy_kind(enemy: Node3D) -> String:
+	if enemy.get("is_boss") == true:
+		return "boss"
+	match int(enemy.get("enemy_type")):
+		1:
+			return "scout"
+		2:
+			return "drone"
+		3:
+			return "spider"
+	return "heavy"
 
 func _make_bar_style(color: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()

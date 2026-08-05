@@ -9,11 +9,15 @@ enum WeaponMode {
 signal stats_changed
 signal view_mode_changed(first_person: bool)
 signal announcement(text: String)
+signal damage_taken(amount: float, hit_position: Vector3)
+signal weapon_hit(part_name: String, critical: bool, destroyed: bool)
+signal player_defeated
 
 @export var move_speed: float = 7.5
 @export var boost_multiplier: float = 1.65
 @export var acceleration: float = 24.0
 @export var gravity: float = 18.0
+@export var respawn_invulnerability_seconds: float = 3.0
 @export var sprint_safe_duration: float = 10.0
 @export var sprint_max_duration: float = 20.0
 @export var sprint_recovery_seconds: float = 6.0
@@ -56,14 +60,26 @@ var _body_visual: Node3D
 var _cockpit_visual: Node3D
 var _first_person_weapon_visual: Node3D
 var _missile_port_visual: Node3D
+var _left_muzzle_flash: MeshInstance3D
+var _right_muzzle_flash: MeshInstance3D
+var _left_muzzle_light: OmniLight3D
+var _right_muzzle_light: OmniLight3D
+var _left_muzzle_timer: float = 0.0
+var _right_muzzle_timer: float = 0.0
+var _movement_audio_timer: float = 0.0
+var _sprint_exhaust_timer: float = 0.0
 var _view_pivot: Node3D
 var _spring_arm: SpringArm3D
 var _first_person_camera: Camera3D
 var _third_person_camera: Camera3D
 var _machinegun_cooldown: float = 0.0
 var _rocket_cooldown: float = 0.0
+var _emp_cooldown: float = 0.0
 var _reload_timer: float = 0.0
 var _missile_lock_target: Node3D
+var _camera_recoil: float = 0.0
+var _respawn_invulnerability_timer: float = 0.0
+var _disabled: bool = false
 var _base_health_max: float
 var _base_move_speed: float
 var _base_boost_multiplier: float
@@ -81,6 +97,7 @@ func setup(game_instance: Node3D) -> void:
 func _ready() -> void:
     collision_layer = 1
     collision_mask = 1
+    add_to_group("player_mechs")
     floor_snap_length = 0.5
     floor_stop_on_slope = true
     _build_collision()
@@ -268,11 +285,71 @@ func _build_first_person_cockpit() -> void:
             _visual_box(_missile_port_visual, Vector3(tube_x, tube_y, -1.78), Vector3(0.18, 0.18, 0.52), Color(0.025, 0.05, 0.06))
             _visual_box(_missile_port_visual, Vector3(tube_x, tube_y, -2.07), Vector3(0.08, 0.08, 0.08), hazard, 4.0)
     _missile_port_visual.visible = false
+    _build_muzzle_effects()
     _refresh_first_person_weapon_visuals()
 
+func _build_muzzle_effects() -> void:
+    _left_muzzle_flash = _create_muzzle_flash(Vector3(-0.80, -0.50, -2.35), Color(1.0, 0.28, 0.06))
+    _right_muzzle_flash = _create_muzzle_flash(Vector3(0.82, -0.46, -2.35), Color(1.0, 0.76, 0.20))
+    _left_muzzle_light = _create_muzzle_light(_left_muzzle_flash.position, Color(1.0, 0.20, 0.04))
+    _right_muzzle_light = _create_muzzle_light(_right_muzzle_flash.position, Color(1.0, 0.66, 0.12))
+    _left_muzzle_flash.visible = false
+    _right_muzzle_flash.visible = false
+    _left_muzzle_light.visible = false
+    _right_muzzle_light.visible = false
+
+func _create_muzzle_flash(position: Vector3, color: Color) -> MeshInstance3D:
+    var flash := MeshInstance3D.new()
+    var mesh := SphereMesh.new()
+    mesh.radius = 0.24
+    mesh.height = 0.48
+    flash.mesh = mesh
+    flash.position = position
+    flash.scale = Vector3(0.65, 0.65, 1.8)
+    flash.material_override = _material(color, 5.0)
+    _first_person_camera.add_child(flash)
+    return flash
+
+func _create_muzzle_light(position: Vector3, color: Color) -> OmniLight3D:
+    var light := OmniLight3D.new()
+    light.position = position
+    light.light_color = color
+    light.light_energy = 3.5
+    light.omni_range = 4.5
+    light.shadow_enabled = false
+    _first_person_camera.add_child(light)
+    return light
+
+func _show_muzzle_flash(hand: StringName, color: Color, intensity: float) -> void:
+    if SettingsManager.reduced_effects:
+        intensity *= 0.55
+    var flash := _left_muzzle_flash if hand == &"left" else _right_muzzle_flash
+    var light := _left_muzzle_light if hand == &"left" else _right_muzzle_light
+    flash.material_override = _material(color, 4.0 + intensity * 2.0)
+    flash.scale = Vector3(0.55, 0.55, 1.2 + intensity * 0.65)
+    flash.visible = true
+    light.light_energy = 2.0 + intensity * 2.0
+    light.visible = true
+    if hand == &"left":
+        _left_muzzle_timer = 0.055
+    else:
+        _right_muzzle_timer = 0.045
+
+func _update_muzzle_effects(delta: float) -> void:
+    _left_muzzle_timer = maxf(_left_muzzle_timer - delta, 0.0)
+    _right_muzzle_timer = maxf(_right_muzzle_timer - delta, 0.0)
+    _left_muzzle_flash.visible = _left_muzzle_timer > 0.0
+    _right_muzzle_flash.visible = _right_muzzle_timer > 0.0
+    _left_muzzle_light.visible = _left_muzzle_timer > 0.0
+    _right_muzzle_light.visible = _right_muzzle_timer > 0.0
+
 func _process(delta: float) -> void:
+    _update_muzzle_effects(delta)
+    _camera_recoil = move_toward(_camera_recoil, 0.0, delta * 0.65)
+    _respawn_invulnerability_timer = maxf(_respawn_invulnerability_timer - delta, 0.0)
     _machinegun_cooldown = maxf(_machinegun_cooldown - delta, 0.0)
     _rocket_cooldown = maxf(_rocket_cooldown - delta, 0.0)
+    _emp_cooldown = maxf(_emp_cooldown - delta, 0.0)
     if _reload_timer > 0.0:
         _reload_timer = maxf(_reload_timer - delta, 0.0)
         if is_zero_approx(_reload_timer):
@@ -288,6 +365,8 @@ func _process(delta: float) -> void:
         toggle_view()
     if Input.is_action_just_pressed("reload"):
         _start_reload()
+    if Input.is_action_just_pressed("emp_pulse"):
+        _fire_emp_pulse()
     if current_weapon == WeaponMode.MISSILE_POD:
         if Input.is_action_just_pressed("fire_left_weapon"):
             _fire_guided_missile_salvo()
@@ -320,10 +399,23 @@ func _physics_process(delta: float) -> void:
     elif velocity.y < 0.0:
         velocity.y = 0.0
     move_and_slide()
+    _update_movement_feedback(delta, move_direction, sprinting)
 
-    _view_pivot.rotation = Vector3(pitch, yaw, 0.0)
+    _view_pivot.rotation = Vector3(pitch - _camera_recoil, yaw, 0.0)
     _body_visual.rotation.y = lerp_angle(_body_visual.rotation.y, yaw, minf(delta * 8.0, 1.0))
     stats_changed.emit()
+
+func _update_movement_feedback(delta: float, move_direction: Vector3, sprinting: bool) -> void:
+    var moving := move_direction.length_squared() > 0.0001 and get_speed_mps() > 0.3
+    _movement_audio_timer = maxf(_movement_audio_timer - delta, 0.0)
+    if moving and _movement_audio_timer <= 0.0:
+        AudioManager.play_sound(&"sprint" if sprinting else &"servo", global_position, 1.0 if sprinting else 0.65)
+        _movement_audio_timer = 0.22 if sprinting else 0.48
+
+    _sprint_exhaust_timer = maxf(_sprint_exhaust_timer - delta, 0.0)
+    if sprinting and _sprint_exhaust_timer <= 0.0 and game != null and game.has_method("spawn_sprint_exhaust"):
+        game.call("spawn_sprint_exhaust", global_position, move_direction)
+        _sprint_exhaust_timer = 0.08
 
 func _update_sprint(delta: float, requested: bool) -> bool:
     sprint_active = false
@@ -412,7 +504,28 @@ func _find_damage_target(collider: Node) -> Node:
         current = current.get_parent()
     return null
 
-func _fire_machinegun() -> void:
+func notify_weapon_hit(target: Node, hit_position: Vector3) -> void:
+    if target == null or not is_instance_valid(target):
+        return
+    var part_name := "ARMOR"
+    var critical := false
+    var destroyed := false
+    if target.get("is_boss") == true:
+        part_name = "BOSS CORE"
+        var boss_health := float(target.get("health"))
+        var boss_health_max := maxf(float(target.get("health_max")), 1.0)
+        critical = boss_health / boss_health_max <= 0.25
+    elif target.has_method("get_hit_part_id"):
+        var part_id: StringName = target.call("get_hit_part_id", hit_position)
+        var names: Dictionary = target.call("get_part_display_names") if target.has_method("get_part_display_names") else {}
+        part_name = str(names.get(part_id, part_id))
+        critical = part_id == &"upper_torso" or part_id == &"lower_torso"
+        if target.has_method("get_part_health_snapshot"):
+            var health_snapshot: Dictionary = target.call("get_part_health_snapshot")
+            destroyed = is_zero_approx(float(health_snapshot.get(part_id, 1.0)))
+    weapon_hit.emit(part_name, critical, destroyed)
+
+func _fire_machinegun(hand: StringName = &"right") -> void:
     if _machinegun_cooldown > 0.0 or _reload_timer > 0.0:
         return
     if machinegun_ammo <= 0:
@@ -421,6 +534,9 @@ func _fire_machinegun() -> void:
 
     _machinegun_cooldown = machinegun_fire_interval
     machinegun_ammo -= 1
+    _show_muzzle_flash(hand, Color(1.0, 0.76, 0.20), 0.65)
+    _camera_recoil += 0.006
+    AudioManager.play_sound(&"machinegun", global_position, 1.0)
     var aim := _get_aim_ray()
     var ray_origin: Vector3 = aim["origin"]
     var ray_direction: Vector3 = aim["direction"]
@@ -432,17 +548,21 @@ func _fire_machinegun() -> void:
         var target := _find_damage_target(hit.get("collider") as Node)
         if target != null:
             target.call("take_damage", machinegun_damage, hit_position)
+            notify_weapon_hit(target, hit_position)
     if game != null and game.has_method("spawn_tracer"):
         game.call("spawn_tracer", ray_origin, hit_position, Color(1.0, 0.76, 0.20))
     stats_changed.emit()
 
-func _fire_rocket() -> void:
+func _fire_rocket(hand: StringName = &"left") -> void:
     if _rocket_cooldown > 0.0 or _reload_timer > 0.0 or rocket_ammo <= 0:
         if rocket_ammo <= 0:
             announcement.emit("ROCKET POD // EMPTY")
         return
     _rocket_cooldown = 0.85
     rocket_ammo -= 1
+    _show_muzzle_flash(hand, Color(1.0, 0.24, 0.06), 1.2)
+    _camera_recoil += 0.022
+    AudioManager.play_sound(&"rocket", global_position, 1.0)
     var aim := _get_aim_ray()
     var ray_origin: Vector3 = aim["origin"]
     var ray_direction: Vector3 = aim["direction"]
@@ -468,8 +588,20 @@ func _launch_missile_salvo(lock_target: Node3D, fire_mode: String) -> void:
     var ray_origin: Vector3 = aim["origin"]
     var ray_direction: Vector3 = aim["direction"]
     if game != null and game.has_method("spawn_player_missile_salvo"):
-        game.call("spawn_player_missile_salvo", ray_origin + ray_direction * 1.4, ray_direction, self, lock_target, missile_damage, missile_explosion_radius)
-    announcement.emit("MISSILE PORT // 8X " + fire_mode)
+        game.call("spawn_player_missile_salvo", ray_origin + ray_direction * 1.4, ray_direction, self, lock_target, missile_damage, missile_explosion_radius, missile_salvo_size)
+    AudioManager.play_sound(&"missile", global_position, 1.0)
+    announcement.emit("MISSILE PORT // %02dX %s" % [missile_salvo_size, fire_mode])
+    stats_changed.emit()
+
+func _fire_emp_pulse() -> void:
+    if _emp_cooldown > 0.0:
+        announcement.emit("EMP PULSE // RECHARGING %02d S" % int(ceil(_emp_cooldown)))
+        return
+    _emp_cooldown = 12.0
+    if game != null and game.has_method("spawn_emp_pulse"):
+        game.call("spawn_emp_pulse", global_position + Vector3(0.0, 1.0, 0.0), 13.0, 90.0)
+    AudioManager.play_sound(&"emp", global_position, 1.2)
+    announcement.emit("EMP PULSE // HOSTILES DISRUPTED")
     stats_changed.emit()
 
 func _select_weapon(mode: int) -> void:
@@ -582,15 +714,15 @@ func _finish_reload() -> void:
 
 func _fire_left_hand_weapon() -> void:
     if UpgradeManager.weapon_group == &"support":
-        _fire_machinegun()
+        _fire_machinegun(&"left")
     else:
-        _fire_rocket()
+        _fire_rocket(&"left")
 
 func _fire_right_hand_weapon() -> void:
     if UpgradeManager.weapon_group == &"support":
-        _fire_rocket()
+        _fire_rocket(&"right")
     else:
-        _fire_machinegun()
+        _fire_machinegun(&"right")
 
 func get_speed_mps() -> float:
     return Vector2(velocity.x, velocity.z).length()
@@ -624,8 +756,13 @@ func get_weapon_status() -> String:
             return "L ROCKET %s // R MG %s" % [rocket_status, machinegun_status]
         WeaponMode.MISSILE_POD:
             var missile_status := "READY" if missile_salvo_count > 0 else "EMPTY"
-            return "8X MISSILE SALVO %02d // %s" % [missile_salvo_count, missile_status]
+            return "%02dX MISSILE SALVO %02d // %s" % [missile_salvo_size, missile_salvo_count, missile_status]
     return "UNKNOWN"
+
+func get_emp_status() -> String:
+    if _emp_cooldown <= 0.0:
+        return "READY"
+    return "%02d S" % int(ceil(_emp_cooldown))
 
 func get_weapon_display_name() -> String:
     match current_weapon:
@@ -642,7 +779,7 @@ func get_missile_lock_ui() -> String:
     if current_weapon != WeaponMode.MISSILE_POD:
         return ""
     if is_instance_valid(_missile_lock_target):
-        return "MISSILE LOCK // %s // 8X HOMING" % _missile_lock_target.name
+        return "MISSILE LOCK // %s // %02dX HOMING" % [_missile_lock_target.name, missile_salvo_size]
     return "MISSILE LOCK // NO TARGET // AIM POINT FIRE"
 
 func get_locked_enemy() -> Node3D:
@@ -663,16 +800,49 @@ func get_locked_enemy_screen_position() -> Vector2:
     var screen_position: Vector2 = camera.unproject_position(target_position)
     return Vector2(screen_position.x / viewport_size.x, screen_position.y / viewport_size.y)
 
+func get_damage_direction_screen(hit_position: Vector3) -> Vector2:
+    if hit_position == Vector3.ZERO:
+        return Vector2.UP
+    var camera: Camera3D = _first_person_camera if first_person else _third_person_camera
+    var local_hit := camera.to_local(hit_position)
+    var direction := Vector2(local_hit.x, local_hit.z)
+    if direction.length_squared() < 0.0001:
+        return Vector2.UP
+    return direction.normalized()
+
 func repair_full() -> void:
     health = health_max
     announcement.emit("REPAIR BOT // ARMOR RESTORED")
     stats_changed.emit()
 
-func take_damage(amount: float, _hit_position: Vector3 = Vector3.ZERO) -> void:
+func take_damage(amount: float, hit_position: Vector3 = Vector3.ZERO) -> void:
+    if _disabled or _respawn_invulnerability_timer > 0.0:
+        return
     health = maxf(health - amount, 0.0)
+    damage_taken.emit(amount, hit_position)
     if health <= 0.0:
-        health = health_max
-        global_position = Vector3(0.0, 0.0, 36.0)
+        _disabled = true
         velocity = Vector3.ZERO
-        announcement.emit("COCKPIT RESET // PILOT LINK RESTORED")
+        player_defeated.emit()
+        announcement.emit("COCKPIT FAILURE // MISSION INTERRUPTED")
+    stats_changed.emit()
+
+func restore_after_failure(position: Vector3) -> void:
+    _disabled = false
+    health = health_max
+    machinegun_ammo = machinegun_magazine_size
+    machinegun_reserve = machinegun_reserve_max
+    rocket_ammo = rocket_magazine_size
+    rocket_reserve = rocket_reserve_max
+    missile_salvo_count = 4
+    _reload_timer = 0.0
+    _missile_lock_target = null
+    global_position = position
+    velocity = Vector3.ZERO
+    sprint_elapsed = 0.0
+    sprint_overheated = false
+    sprint_recovery_timer = 0.0
+    _respawn_invulnerability_timer = respawn_invulnerability_seconds
+    _emp_cooldown = 0.0
+    announcement.emit("COCKPIT RESET // INVULNERABLE %02d S" % int(ceil(respawn_invulnerability_seconds)))
     stats_changed.emit()

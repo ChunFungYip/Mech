@@ -23,6 +23,7 @@ func _process(_delta: float) -> void:
     var can_interact := distance <= INTERACTION_RANGE
     _prompt.visible = can_interact
     if can_interact and Input.is_action_just_pressed("interact") and game != null and game.has_method("open_repair_bot"):
+        AudioManager.play_sound(&"repair", global_position, 0.8)
         game.call("open_repair_bot")
 
 func _material(color: Color, emission_energy: float = 0.0) -> StandardMaterial3D:

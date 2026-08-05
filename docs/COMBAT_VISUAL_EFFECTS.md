@@ -40,6 +40,7 @@ The direct-fire rocket is a visible projectile rather than an instant ray.
 - Movement: straight-line travel with collision ray checking between frames.
 - Detonation: on geometry impact, enemy impact, or lifetime expiration.
 - Damage: direct target damage plus nearby enemy area damage.
+- Smoke trail: short generated translucent puffs emitted behind the projectile during flight.
 
 Implementation:
 
@@ -58,6 +59,7 @@ The missile port fires eight missiles in a salvo. Each missile is individually s
 - Unguided mode: when there is no lock, the missile keeps its launch direction.
 - Salvo spread: missiles launch from small offsets to create a visible formation.
 - Detonation: on collision, near-target contact, or lifetime expiration.
+- Smoke trail: smaller generated translucent puffs emitted at a faster interval than the rocket trail.
 
 Implementation:
 
@@ -79,9 +81,9 @@ Implementation: `scripts/Main.gd` in `spawn_explosion()`.
 
 ### Hit Spark
 
-A hit spark is currently a small explosion flash using a reduced radius and a bright yellow color. It is used when an enemy mech receives damage.
+A hit spark combines a small explosion flash with six generated glowing debris streaks that shoot outward from the impact position and fade quickly. It is used when an enemy mech or boss receives damage.
 
-This is intentionally lightweight. It provides immediate feedback without introducing a particle system or imported effect texture.
+This is intentionally lightweight. It provides directional impact feedback without introducing a particle system or imported effect texture.
 
 Implementation: `scripts/Main.gd` in `spawn_hit_spark()`.
 
@@ -96,11 +98,11 @@ Enemy mechs are assembled into six logical visual groups:
 - Left leg
 - Right leg
 
-When a part reaches zero HP, its visual group is hidden. This gives a clear visual state change even though the current prototype does not yet detach parts with physics.
+When a part takes damage, its generated armor meshes progressively tint toward hot red and gain emissive damage heat. Below roughly 72 percent HP, a generated exposed-core panel and two glowing conduit strips appear on the part. When the part reaches zero HP, its armor group and damage detail geometry are hidden. This gives a clear visual state change even though the current prototype does not yet detach parts with physics.
 
 The upper and lower torso are critical sections. The enemy is destroyed only after both torso sections reach zero HP. Destroying either leg applies the 40 percent movement-speed penalty before the final destruction state.
 
-Implementation: `scripts/EnemyMech.gd`.
+Implementation: `scripts/EnemyMech.gd`, using the `_part_meshes`, `_part_damage_markers`, and `_update_part_damage_visual()` runtime mesh path.
 
 ### Enemy Archetype Visuals
 
@@ -124,6 +126,8 @@ The Central Market Siege Boss uses a separate giant procedural silhouette rather
 - Local red reactor light.
 - World-space `CENTRAL MARKET // SIEGE CLASS` label.
 - Large defeat explosion when its health reaches zero.
+- Phase label changes from `PHASE 01` to `PHASE 02` below 50 percent health and to `PHASE 03` below 25 percent health.
+- Movement speed, attack damage, and attack interval increase at each phase.
 
 The boss is dormant until the player enters its central-city area. The gameplay HUD adds a dedicated red boss-health panel while the player is inside that area.
 
@@ -140,6 +144,9 @@ Visible elements include:
 - Left-side rocket mount.
 - Missile-port tubes when missile mode is selected.
 - Emissive warning strips and display panels.
+- Reusable first-person muzzle-flash meshes and local weapon lights.
+- Brief camera recoil after machine-gun and rocket shots.
+- Brief enemy body twist and movement interruption on heavy hits or destroyed components.
 
 These pieces are visual-only and are positioned around the screen edges to protect the center aim area.
 
@@ -181,6 +188,11 @@ The HUD is also part of the combat presentation. It currently shows:
 - Selected weapon group.
 - Missile lock state.
 - Target-following missile lock brackets and a `LOCKED` indicator, clamped to the viewport edge when the target is off-center.
+- A red incoming-damage arrow that rotates toward the hit direction and fades after impact.
+- A short hit-confirmation `X` marker for successful player weapon impacts.
+- `CRITICAL HIT` and `PART DESTROYED` announcements for enemy component results.
+- A pulsing `CRITICAL ARMOR` warning at low player health.
+- A responsive `50 m` radar with forward-oriented enemy blips and an active-boss marker.
 - Six locked-enemy component HP bars.
 - Enemy wave, contact count, and confirmed kills.
 - Combat announcements such as enemy destruction, overheat, and missile launches.
@@ -217,39 +229,36 @@ The effect layer currently uses:
 - Physics ray queries for projectile collision
 - Runtime object cleanup with `queue_free()`
 
-This approach keeps the prototype self-contained and easy to tune. It also means that the current effects are deliberately simple and do not yet include textures, particle systems, skeletal animation, or audio.
+This approach keeps the prototype self-contained and easy to tune. The visual effects are deliberately simple and do not yet include textures, particle systems, or skeletal animation. Sound is handled separately by the runtime procedural audio layer documented in `docs/PROCEDURAL_AUDIO.md`.
 
 ## Effects Not Yet Implemented
 
 The following effects are not currently part of the project:
 
-- Muzzle flashes.
 - Particle-based sparks.
 - Smoke trails for rockets and missiles.
 - Fire, burning, or critical-damage effects.
 - Armor debris and detached parts with physics.
 - Bullet impact decals or scorch marks.
 - Enemy hit reactions or stagger animations.
-- Mech recoil and camera shake.
-- Screen damage indicators or cockpit warning overlays.
-- Sprint exhaust, engine glow, or heat distortion.
-- Footstep dust and landing impact effects.
+- Camera shake on heavy impacts.
+- Stronger screen damage effects and cockpit warning overlays.
+- Engine glow, sprint heat distortion, footstep dust, and landing impact effects.
 - Servo movement animations.
-- Weapon, impact, and explosion audio.
+- Richer authored weapon, impact, and explosion audio. Basic synthesized versions already exist in `scripts/AudioManager.gd`.
 - Mech alarms and warning voice lines.
 
 ## Recommended Next Effect Pass
 
 The next visual-effects pass should add feedback in this order:
 
-1. Add muzzle flashes to the left rocket launcher and right machine gun.
-2. Add smoke trails and small exhaust flames to rockets and missiles.
-3. Add particle sparks and a brief flash for each enemy part hit.
-4. Add a stronger critical warning effect when either torso is damaged below a threshold.
-5. Add detached armor chunks when an arm or leg is destroyed.
-6. Add camera recoil and a small camera shake on heavy impacts.
-7. Add heat glow and exhaust effects during sprint and overheat.
-8. Add audio only after the visual timing is stable.
+1. Add smoke trails and small exhaust flames to rockets and missiles.
+2. Add particle sparks and a brief flash for each enemy part hit.
+3. Add a stronger critical warning effect when either torso is damaged below a threshold.
+4. Add detached armor chunks when an arm or leg is destroyed.
+5. Add a small camera shake on heavy impacts.
+6. Add heat glow and exhaust effects during sprint and overheat.
+7. Expand the procedural sound layer with ambience and looping mech audio after the visual timing is stable.
 
 ## Performance Notes
 

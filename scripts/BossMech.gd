@@ -4,6 +4,7 @@ class_name BossMech
 signal defeated(boss: Node)
 signal health_changed(current: float, maximum: float)
 signal activated
+signal phase_changed(phase: int)
 
 @export var health_max: float = 2400.0
 @export var move_speed: float = 2.1
@@ -17,9 +18,15 @@ var game: Node3D
 var is_boss: bool = true
 var is_defeated: bool = false
 var active: bool = false
+var phase: int = 1
 var _dead: bool = false
 var _attack_timer: float = 2.0
+var _special_attack_timer: float = 4.5
+var _special_attack_index: int = 0
+var _base_health_max: float
+var _base_attack_damage: float
 var _visual: Node3D
+var _phase_label: Label3D
 
 func _ready() -> void:
     collision_layer = 1
@@ -29,17 +36,58 @@ func _ready() -> void:
     add_to_group("boss_mechs")
     _build_collision()
     _build_visual()
+    _base_health_max = health_max
+    _base_attack_damage = attack_damage
 
 func setup(game_instance: Node3D, target_instance: Node3D) -> void:
     game = game_instance
     target = target_instance
+
+func apply_difficulty(health_scale: float, damage_scale: float) -> void:
+    var health_ratio := health / maxf(health_max, 0.01)
+    health_max = _base_health_max * health_scale
+    health = health_max * health_ratio
+    attack_damage = _base_attack_damage * damage_scale
+    health_changed.emit(health, health_max)
 
 func activate() -> void:
     if active or _dead:
         return
     active = true
     _attack_timer = 1.2
+    _special_attack_timer = 4.5
+    _apply_phase()
     activated.emit()
+
+func reset_encounter() -> void:
+    if _dead:
+        return
+    active = false
+    is_defeated = false
+    phase = 1
+    health = health_max
+    velocity = Vector3.ZERO
+    _attack_timer = 2.0
+    _special_attack_timer = 4.5
+    _special_attack_index = 0
+    _apply_phase()
+
+func _apply_phase() -> void:
+    match phase:
+        2:
+            move_speed = 2.7
+            attack_damage = 42.0
+            attack_interval = 0.82
+        3:
+            move_speed = 3.3
+            attack_damage = 52.0
+            attack_interval = 0.58
+        _:
+            move_speed = 2.1
+            attack_damage = 34.0
+            attack_interval = 1.1
+    if _phase_label != null:
+        _phase_label.text = "CENTRAL MARKET // SIEGE CLASS // PHASE %02d" % phase
 
 func _build_collision() -> void:
     var collision := CollisionShape3D.new()
@@ -127,21 +175,24 @@ func _build_visual() -> void:
     light.shadow_enabled = false
     _visual.add_child(light)
 
-    var label := Label3D.new()
-    label.text = "CENTRAL MARKET // SIEGE CLASS"
-    label.position = Vector3(0.0, 10.4, 0.0)
-    label.font_size = 44
-    label.modulate = Color(1.0, 0.30, 0.16)
-    label.outline_size = 8
-    label.outline_modulate = Color(0.005, 0.01, 0.02, 0.96)
-    label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-    label.double_sided = true
-    _visual.add_child(label)
+    _phase_label = Label3D.new()
+    _phase_label.text = "CENTRAL MARKET // SIEGE CLASS // PHASE 01"
+    _phase_label.position = Vector3(0.0, 10.4, 0.0)
+    _phase_label.font_size = 44
+    _phase_label.modulate = Color(1.0, 0.30, 0.16)
+    _phase_label.outline_size = 8
+    _phase_label.outline_modulate = Color(0.005, 0.01, 0.02, 0.96)
+    _phase_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    _phase_label.double_sided = true
+    _visual.add_child(_phase_label)
 
 func _physics_process(delta: float) -> void:
     if not active or _dead or not is_instance_valid(target):
         return
-    var target_position := target.global_position + Vector3(0.0, 2.4, 0.0)
+    var chase_position := target.global_position
+    if game != null and game.has_method("get_enemy_target_position"):
+        chase_position = game.call("get_enemy_target_position")
+    var target_position := chase_position + Vector3(0.0, 2.4, 0.0)
     var to_target := target_position - (global_position + Vector3(0.0, 5.0, 0.0))
     var horizontal := Vector3(to_target.x, 0.0, to_target.z)
     var distance := horizontal.length()
@@ -165,9 +216,28 @@ func _physics_process(delta: float) -> void:
     if _attack_timer <= 0.0 and distance <= attack_range:
         _fire_at_target(target_position)
         _attack_timer = attack_interval + randf_range(-0.15, 0.25)
+    _special_attack_timer -= delta
+    if phase >= 2 and _special_attack_timer <= 0.0:
+        _fire_special_attack()
+        _special_attack_index += 1
+        _special_attack_timer = 5.6 if phase == 2 else 3.8
+
+func _fire_special_attack() -> void:
+    if game == null or not is_instance_valid(target):
+        return
+    var origin := global_position + global_transform.basis * Vector3(0.0, 6.8, -2.2)
+    var target_position := target.global_position + Vector3(0.0, 2.0, 0.0)
+    var direction := origin.direction_to(target_position)
+    if _special_attack_index % 2 == 0:
+        if game.has_method("spawn_boss_missile_salvo"):
+            game.call("spawn_boss_missile_salvo", origin, direction, self, target, 32.0 if phase == 2 else 44.0, 3.6 if phase == 2 else 4.8)
+        AudioManager.play_sound(&"boss_attack", global_position, 1.25)
+    elif game.has_method("spawn_boss_hazard"):
+        game.call("spawn_boss_hazard", target.global_position, 5.5 if phase == 2 else 7.0, 38.0 if phase == 2 else 52.0, 1.2 if phase == 2 else 0.8, 3.4 if phase == 2 else 4.2)
+        AudioManager.play_sound(&"hazard", global_position, 1.2)
 
 func _fire_at_target(target_position: Vector3) -> void:
-    var origin := global_position + Vector3(0.0, 6.1, -2.0)
+    var origin := global_position + global_transform.basis * Vector3(0.0, 6.1, -2.0)
     var direction := origin.direction_to(target_position)
     var ray_end := origin + direction * attack_range
     var query := PhysicsRayQueryParameters3D.create(origin, ray_end)
@@ -186,12 +256,14 @@ func _fire_at_target(target_position: Vector3) -> void:
             current = current.get_parent()
     if game != null and game.has_method("spawn_tracer"):
         game.call("spawn_tracer", origin, hit_position, Color(1.0, 0.05, 0.02))
+    AudioManager.play_sound(&"enemy_fire", global_position, 1.5)
 
 func take_damage(amount: float, hit_position: Vector3 = Vector3.ZERO) -> void:
     if _dead or not active:
         return
     health = maxf(health - amount, 0.0)
     health_changed.emit(health, health_max)
+    AudioManager.play_sound(&"hit", hit_position, 1.2)
     if game != null and game.has_method("spawn_hit_spark"):
         game.call("spawn_hit_spark", hit_position)
     if health <= 0.0:
@@ -200,7 +272,30 @@ func take_damage(amount: float, hit_position: Vector3 = Vector3.ZERO) -> void:
         defeated.emit(self)
         if game != null and game.has_method("spawn_explosion"):
             game.call("spawn_explosion", global_position + Vector3(0.0, 5.0, 0.0), 7.0, Color(1.0, 0.10, 0.03))
+        AudioManager.play_sound(&"explosion", global_position, 1.8)
         queue_free()
+        return
+    var next_phase := 1
+    if health <= health_max * 0.25:
+        next_phase = 3
+    elif health <= health_max * 0.50:
+        next_phase = 2
+    if next_phase > phase:
+        phase = next_phase
+        _apply_phase()
+        phase_changed.emit(phase)
 
 func get_health_percent() -> float:
     return health / maxf(health_max, 0.01)
+
+func keep_out_of_hangar(safe_center: Vector3, safe_radius: float) -> void:
+    if _dead:
+        return
+    var offset := Vector3(global_position.x - safe_center.x, 0.0, global_position.z - safe_center.z)
+    if offset.length() >= safe_radius:
+        return
+    if offset.length_squared() < 0.001:
+        offset = Vector3(0.0, 0.0, -1.0)
+    global_position = safe_center + offset.normalized() * safe_radius
+    velocity.x = 0.0
+    velocity.z = 0.0

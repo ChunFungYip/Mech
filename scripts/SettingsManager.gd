@@ -7,12 +7,17 @@ const DEFAULT_MASTER_VOLUME: float = 1.0
 const DEFAULT_MOUSE_SENSITIVITY_X: float = 0.0025
 const DEFAULT_MOUSE_SENSITIVITY_Y: float = 0.0022
 const DEFAULT_MOUSE_INVERT_Y: bool = false
+const DEFAULT_REDUCED_EFFECTS: bool = false
+const DEFAULT_TUTORIAL_SEEN: bool = false
+const DEFAULT_DIFFICULTY: int = 1
 const DEFAULT_WINDOW_MODE: int = 0
 
 signal field_of_view_changed(value: float)
 signal master_volume_changed(value: float)
 signal mouse_sensitivity_changed(value_x: float, value_y: float)
 signal mouse_invert_y_changed(enabled: bool)
+signal reduced_effects_changed(enabled: bool)
+signal difficulty_changed(level: int)
 signal window_mode_changed(mode: int)
 
 var field_of_view: float = DEFAULT_FIELD_OF_VIEW
@@ -20,6 +25,9 @@ var master_volume: float = DEFAULT_MASTER_VOLUME
 var mouse_sensitivity_x: float = DEFAULT_MOUSE_SENSITIVITY_X
 var mouse_sensitivity_y: float = DEFAULT_MOUSE_SENSITIVITY_Y
 var mouse_invert_y: bool = DEFAULT_MOUSE_INVERT_Y
+var reduced_effects: bool = DEFAULT_REDUCED_EFFECTS
+var tutorial_seen: bool = DEFAULT_TUTORIAL_SEEN
+var difficulty: int = DEFAULT_DIFFICULTY
 var window_mode: int = DEFAULT_WINDOW_MODE
 
 func _ready() -> void:
@@ -37,6 +45,9 @@ func load_settings() -> void:
     mouse_sensitivity_x = clampf(float(config.get_value("gameplay", "mouse_sensitivity_x", DEFAULT_MOUSE_SENSITIVITY_X)), 0.0005, 0.01)
     mouse_sensitivity_y = clampf(float(config.get_value("gameplay", "mouse_sensitivity_y", DEFAULT_MOUSE_SENSITIVITY_Y)), 0.0005, 0.01)
     mouse_invert_y = config.get_value("gameplay", "mouse_invert_y", DEFAULT_MOUSE_INVERT_Y) == true
+    reduced_effects = config.get_value("gameplay", "reduced_effects", DEFAULT_REDUCED_EFFECTS) == true
+    tutorial_seen = config.get_value("gameplay", "tutorial_seen", DEFAULT_TUTORIAL_SEEN) == true
+    difficulty = clampi(int(config.get_value("gameplay", "difficulty", DEFAULT_DIFFICULTY)), 0, 2)
     _apply_all_settings()
 
 func save_settings() -> void:
@@ -47,6 +58,9 @@ func save_settings() -> void:
     config.set_value("gameplay", "mouse_sensitivity_x", mouse_sensitivity_x)
     config.set_value("gameplay", "mouse_sensitivity_y", mouse_sensitivity_y)
     config.set_value("gameplay", "mouse_invert_y", mouse_invert_y)
+    config.set_value("gameplay", "reduced_effects", reduced_effects)
+    config.set_value("gameplay", "tutorial_seen", tutorial_seen)
+    config.set_value("gameplay", "difficulty", difficulty)
     config.save(SETTINGS_FILE_PATH)
 
 func set_field_of_view(value: float) -> void:
@@ -71,6 +85,34 @@ func set_mouse_invert_y(enabled: bool) -> void:
     mouse_invert_y_changed.emit(mouse_invert_y)
     save_settings()
 
+func set_reduced_effects(enabled: bool) -> void:
+    reduced_effects = enabled
+    reduced_effects_changed.emit(reduced_effects)
+    save_settings()
+
+func mark_tutorial_seen() -> void:
+    tutorial_seen = true
+    save_settings()
+
+func set_difficulty(level: int) -> void:
+    difficulty = clampi(level, 0, 2)
+    difficulty_changed.emit(difficulty)
+    save_settings()
+
+func get_difficulty_name() -> String:
+    match difficulty:
+        0:
+            return "STORY"
+        2:
+            return "VETERAN"
+    return "STANDARD"
+
+func get_enemy_health_scale() -> float:
+    return [0.78, 1.0, 1.24][difficulty]
+
+func get_enemy_damage_scale() -> float:
+    return [0.72, 1.0, 1.28][difficulty]
+
 func set_window_mode(mode: int) -> void:
     window_mode = clampi(mode, 0, 2)
     _apply_window_mode()
@@ -83,6 +125,9 @@ func reset_defaults() -> void:
     mouse_sensitivity_x = DEFAULT_MOUSE_SENSITIVITY_X
     mouse_sensitivity_y = DEFAULT_MOUSE_SENSITIVITY_Y
     mouse_invert_y = DEFAULT_MOUSE_INVERT_Y
+    reduced_effects = DEFAULT_REDUCED_EFFECTS
+    tutorial_seen = DEFAULT_TUTORIAL_SEEN
+    difficulty = DEFAULT_DIFFICULTY
     window_mode = DEFAULT_WINDOW_MODE
     _apply_all_settings()
     save_settings()
@@ -94,6 +139,8 @@ func _apply_all_settings() -> void:
     master_volume_changed.emit(master_volume)
     mouse_sensitivity_changed.emit(mouse_sensitivity_x, mouse_sensitivity_y)
     mouse_invert_y_changed.emit(mouse_invert_y)
+    reduced_effects_changed.emit(reduced_effects)
+    difficulty_changed.emit(difficulty)
     window_mode_changed.emit(window_mode)
 
 func _apply_master_volume() -> void:

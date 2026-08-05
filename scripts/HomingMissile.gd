@@ -4,6 +4,7 @@ class_name HomingMissile
 var game: Node3D
 var shooter: Node
 var target: Node3D
+var target_group: StringName = &"enemy_mechs"
 var direction: Vector3 = Vector3.FORWARD
 var speed: float = 28.0
 var turn_rate: float = 4.8
@@ -11,8 +12,9 @@ var damage: float = 46.0
 var explosion_radius: float = 2.8
 var lifetime: float = 8.0
 var _detonated: bool = false
+var _smoke_timer: float = 0.0
 
-func setup(game_instance: Node3D, shooter_instance: Node, start: Vector3, heading: Vector3, target_instance: Node3D = null, damage_amount: float = 46.0, explosion_radius_amount: float = 2.8) -> void:
+func setup(game_instance: Node3D, shooter_instance: Node, start: Vector3, heading: Vector3, target_instance: Node3D = null, damage_amount: float = 46.0, explosion_radius_amount: float = 2.8, target_group_name: StringName = &"enemy_mechs") -> void:
     game = game_instance
     shooter = shooter_instance
     target = target_instance
@@ -20,8 +22,10 @@ func setup(game_instance: Node3D, shooter_instance: Node, start: Vector3, headin
     direction = heading.normalized()
     damage = damage_amount
     explosion_radius = explosion_radius_amount
+    target_group = target_group_name
 
 func _ready() -> void:
+    add_to_group("projectiles")
     var mesh_instance := MeshInstance3D.new()
     var mesh := SphereMesh.new()
     mesh.radius = 0.16
@@ -75,6 +79,10 @@ func _physics_process(delta: float) -> void:
 
     global_position = next_position
     look_at_from_position(global_position, global_position + direction, Vector3.UP)
+    _smoke_timer -= delta
+    if _smoke_timer <= 0.0 and game != null and game.has_method("spawn_smoke_puff"):
+        game.call("spawn_smoke_puff", global_position, Color(0.24, 0.28, 0.32, 0.38))
+        _smoke_timer = 0.055
 
 func _find_damage_target(collider: Node) -> Node:
     var current := collider
@@ -89,18 +97,23 @@ func _detonate(position: Vector3, collider: Node) -> void:
         return
     _detonated = true
     global_position = position
+    AudioManager.play_sound(&"explosion", position, clampf(explosion_radius / 2.8, 0.5, 1.4))
 
     var direct_target := _find_damage_target(collider)
     if direct_target != null and direct_target != shooter:
         direct_target.call("take_damage", damage, position)
+        if shooter != null and shooter.has_method("notify_weapon_hit"):
+            shooter.call("notify_weapon_hit", direct_target, position)
 
-    for candidate_variant in get_tree().get_nodes_in_group("enemy_mechs"):
+    for candidate_variant in get_tree().get_nodes_in_group(target_group):
         var candidate := candidate_variant as Node3D
         if candidate == null or not is_instance_valid(candidate) or candidate == direct_target:
             continue
         var candidate_position := candidate.global_position + Vector3(0.0, 2.2, 0.0)
         if position.distance_to(candidate_position) <= explosion_radius:
             candidate.call("take_damage", damage * 0.72, position)
+            if shooter != null and shooter.has_method("notify_weapon_hit"):
+                shooter.call("notify_weapon_hit", candidate, position)
 
     if game != null and game.has_method("spawn_explosion"):
         game.call("spawn_explosion", position, explosion_radius, Color(1.0, 0.28, 0.04))

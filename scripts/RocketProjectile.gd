@@ -10,6 +10,7 @@ var damage: float = 110.0
 var explosion_radius: float = 5.0
 var lifetime: float = 7.0
 var _detonated: bool = false
+var _smoke_timer: float = 0.0
 
 func setup(game_instance: Node3D, shooter_instance: Node, start: Vector3, heading: Vector3, group_name: StringName, damage_amount: float = 110.0, explosion_radius_amount: float = 5.0) -> void:
     game = game_instance
@@ -21,6 +22,7 @@ func setup(game_instance: Node3D, shooter_instance: Node, start: Vector3, headin
     explosion_radius = explosion_radius_amount
 
 func _ready() -> void:
+    add_to_group("projectiles")
     var mesh_instance := MeshInstance3D.new()
     var mesh := SphereMesh.new()
     mesh.radius = 0.24
@@ -61,6 +63,10 @@ func _physics_process(delta: float) -> void:
         _detonate(hit["position"], hit.get("collider") as Node)
         return
     global_position = next_position
+    _smoke_timer -= delta
+    if _smoke_timer <= 0.0 and game != null and game.has_method("spawn_smoke_puff"):
+        game.call("spawn_smoke_puff", global_position, Color(0.28, 0.30, 0.32, 0.42))
+        _smoke_timer = 0.06
 
 func _find_damage_target(collider: Node) -> Node:
     var current := collider
@@ -75,10 +81,13 @@ func _detonate(position: Vector3, collider: Node) -> void:
         return
     _detonated = true
     global_position = position
+    AudioManager.play_sound(&"explosion", position, clampf(explosion_radius / 5.0, 0.6, 1.5))
     var direct_target := _find_damage_target(collider)
     var damaged: Array[Node] = []
     if direct_target != null and direct_target != shooter:
         direct_target.call("take_damage", damage, position)
+        if shooter != null and shooter.has_method("notify_weapon_hit"):
+            shooter.call("notify_weapon_hit", direct_target, position)
         damaged.append(direct_target)
 
     for candidate in get_tree().get_nodes_in_group(target_group):
@@ -88,6 +97,8 @@ func _detonate(position: Vector3, collider: Node) -> void:
         var target_position := (target as Node3D).global_position + Vector3(0.0, 2.2, 0.0)
         if position.distance_to(target_position) <= explosion_radius:
             target.call("take_damage", damage * 0.72, position)
+            if shooter != null and shooter.has_method("notify_weapon_hit"):
+                shooter.call("notify_weapon_hit", target, position)
 
     if game != null and game.has_method("spawn_explosion"):
         game.call("spawn_explosion", position, explosion_radius, Color(1.0, 0.34, 0.05))

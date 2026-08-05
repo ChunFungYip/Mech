@@ -15,7 +15,11 @@ var _sensitivity_x_value: Label
 var _sensitivity_y_slider: HSlider
 var _sensitivity_y_value: Label
 var _invert_y_button: CheckButton
+var _reduced_effects_button: CheckButton
+var _difficulty_option: OptionButton
 var _window_mode_option: OptionButton
+var _slot_option: OptionButton
+var _slot_status: Label
 var _settings_panel: ColorRect
 const SETTINGS_PANEL_SIZE := Vector2(760.0, 570.0)
 
@@ -66,10 +70,10 @@ func _build_ui() -> void:
     tabs.size = Vector2(692.0, 38.0)
     tabs.add_theme_constant_override("separation", 8)
     panel.add_child(tabs)
-    for tab_name in ["DISPLAY", "AUDIO", "CONTROLS", "GAMEPLAY"]:
+    for tab_name in ["DISPLAY", "AUDIO", "CONTROLS", "GAMEPLAY", "PROFILE"]:
         var tab := Button.new()
         tab.text = tab_name
-        tab.custom_minimum_size = Vector2(150.0, 34.0)
+        tab.custom_minimum_size = Vector2(128.0, 34.0)
         tab.focus_mode = Control.FOCUS_ALL
         tab.pressed.connect(_on_tab_pressed.bind(_tab_buttons.size()))
         tabs.add_child(tab)
@@ -83,6 +87,7 @@ func _build_ui() -> void:
     _build_audio_page()
     _build_controls_page()
     _build_gameplay_page()
+    _build_profile_page()
     _show_page(0)
 
     var footer := HBoxContainer.new()
@@ -137,7 +142,15 @@ func _build_audio_page() -> void:
     _add_hint(page, "The master bus is ready for the prototype's future audio layer.")
 
 func _build_controls_page() -> void:
-    var page := _new_page()
+    var scroll := ScrollContainer.new()
+    scroll.size = _content.size
+    _content.add_child(scroll)
+    _pages.append(scroll)
+    var page := VBoxContainer.new()
+    page.custom_minimum_size = Vector2(_content.size.x, 470.0)
+    page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    page.add_theme_constant_override("separation", 6)
+    scroll.add_child(page)
     _add_info_row(page, "W A S D", "Move mech")
     _add_info_row(page, "SHIFT", "Heat-limited sprint")
     _add_info_row(page, "MOUSE", "Aim and rotate camera")
@@ -145,6 +158,7 @@ func _build_controls_page() -> void:
     _add_info_row(page, "R", "Reload machine gun")
     _add_info_row(page, "1 / 2", "Return to dual-hand weapons")
     _add_info_row(page, "3", "Missile port: LMB lock / RMB direct")
+    _add_info_row(page, "Q", "EMP pulse: radial disruption")
     _add_info_row(page, "E", "Talk to repair bot in home base")
     _add_info_row(page, "V", "Switch first / third person")
     _add_info_row(page, "ESC", "Open or close settings")
@@ -163,7 +177,44 @@ func _build_gameplay_page() -> void:
     _invert_y_button.button_pressed = SettingsManager.mouse_invert_y
     _invert_y_button.toggled.connect(_on_invert_y_changed)
     _add_control_row(page, "Aim", _invert_y_button)
+    _reduced_effects_button = CheckButton.new()
+    _reduced_effects_button.text = "Reduce flashes and combat bloom"
+    _reduced_effects_button.button_pressed = SettingsManager.reduced_effects
+    _reduced_effects_button.toggled.connect(_on_reduced_effects_changed)
+    _add_control_row(page, "Effects", _reduced_effects_button)
+    _difficulty_option = OptionButton.new()
+    _difficulty_option.add_item("STORY", 0)
+    _difficulty_option.add_item("STANDARD", 1)
+    _difficulty_option.add_item("VETERAN", 2)
+    _difficulty_option.select(SettingsManager.difficulty)
+    _difficulty_option.item_selected.connect(_on_difficulty_changed)
+    _add_control_row(page, "Difficulty", _difficulty_option)
     _add_hint(page, "Sensitivity and aim direction apply to both camera modes.")
+
+func _build_profile_page() -> void:
+    var page := _new_page()
+    _add_info_row(page, "CAMPAIGN", "Mission progress and upgrades are stored per slot.")
+    _slot_option = OptionButton.new()
+    for slot_id in range(1, 4):
+        _slot_option.add_item("SLOT %02d" % slot_id, slot_id)
+    _slot_option.select(clampi(int(UpgradeManager.active_slot) - 1, 0, 2))
+    _add_control_row(page, "Active slot", _slot_option)
+    var actions := HBoxContainer.new()
+    actions.custom_minimum_size = Vector2(0.0, 42.0)
+    actions.add_theme_constant_override("separation", 12)
+    page.add_child(actions)
+    var save_button := Button.new()
+    save_button.text = "SAVE SLOT"
+    save_button.custom_minimum_size = Vector2(180.0, 38.0)
+    save_button.pressed.connect(_save_selected_slot)
+    actions.add_child(save_button)
+    var load_button := Button.new()
+    load_button.text = "LOAD SLOT"
+    load_button.custom_minimum_size = Vector2(180.0, 38.0)
+    load_button.pressed.connect(_load_selected_slot)
+    actions.add_child(load_button)
+    _slot_status = _add_hint(page, "Select a slot to inspect campaign progress.")
+    _refresh_slot_status()
 
 func _new_page() -> Control:
     var page := VBoxContainer.new()
@@ -241,7 +292,7 @@ func _add_info_row(parent: Control, key_text: String, description: String) -> vo
     description_label.add_theme_color_override("font_color", Color(0.74, 0.80, 0.80))
     row.add_child(description_label)
 
-func _add_hint(parent: Control, text: String) -> void:
+func _add_hint(parent: Control, text: String) -> Label:
     var hint := Label.new()
     hint.text = text
     hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -249,6 +300,7 @@ func _add_hint(parent: Control, text: String) -> void:
     hint.add_theme_font_size_override("font_size", 12)
     hint.add_theme_color_override("font_color", Color(0.46, 0.58, 0.60))
     parent.add_child(hint)
+    return hint
 
 func _add_label(parent: Control, text: String, position: Vector2, size: Vector2, font_size: int, color: Color) -> Label:
     var label := Label.new()
@@ -289,8 +341,36 @@ func _on_sensitivity_y_changed(value: float) -> void:
 func _on_invert_y_changed(enabled: bool) -> void:
     SettingsManager.set_mouse_invert_y(enabled)
 
+func _on_reduced_effects_changed(enabled: bool) -> void:
+    SettingsManager.set_reduced_effects(enabled)
+
+func _on_difficulty_changed(index: int) -> void:
+    SettingsManager.set_difficulty(index)
+
 func _on_window_mode_changed(index: int) -> void:
     SettingsManager.set_window_mode(index)
+
+func _save_selected_slot() -> void:
+    if _slot_option == null:
+        return
+    var slot_id := _slot_option.get_selected_id()
+    UpgradeManager.save_slot(slot_id)
+    _refresh_slot_status()
+
+func _load_selected_slot() -> void:
+    if _slot_option == null:
+        return
+    var slot_id := _slot_option.get_selected_id()
+    if UpgradeManager.load_slot(slot_id):
+        _refresh_slot_status()
+    else:
+        _slot_status.text = "SLOT %02d // EMPTY // SAVE A NEW CAMPAIGN HERE" % slot_id
+
+func _refresh_slot_status() -> void:
+    if _slot_status == null or _slot_option == null:
+        return
+    var slot_id := _slot_option.get_selected_id()
+    _slot_status.text = UpgradeManager.get_slot_summary(slot_id)
 
 func _reset_defaults() -> void:
     SettingsManager.reset_defaults()
@@ -299,6 +379,8 @@ func _reset_defaults() -> void:
     _sensitivity_x_slider.value = SettingsManager.mouse_sensitivity_x
     _sensitivity_y_slider.value = SettingsManager.mouse_sensitivity_y
     _invert_y_button.button_pressed = SettingsManager.mouse_invert_y
+    _reduced_effects_button.button_pressed = SettingsManager.reduced_effects
+    _difficulty_option.select(SettingsManager.difficulty)
     _window_mode_option.select(SettingsManager.window_mode)
     _update_slider_label(_fov_slider, _fov_value)
     _update_slider_label(_volume_slider, _volume_value)

@@ -2,6 +2,8 @@ extends Node
 class_name MechUpgradeManager
 
 const PROFILE_PATH: String = "user://mech_upgrade_profile.cfg"
+const SAVE_SLOT_COUNT: int = 3
+const SAVE_SLOT_PATH_FORMAT: String = "user://mech_campaign_slot_%d.cfg"
 const DEFAULT_CREDITS: int = 1200
 
 signal profile_changed
@@ -12,6 +14,9 @@ signal mech_tuning_changed(tuning_id: StringName)
 var credits: int = DEFAULT_CREDITS
 var weapon_group: StringName = &"strike"
 var mech_tuning: StringName = &"balanced"
+var active_slot: int = 1
+var campaign_mission: int = 1
+var campaign_completed: int = 0
 var upgrade_levels: Dictionary = {
     "armor": 0,
     "mobility": 0,
@@ -24,10 +29,13 @@ func _ready() -> void:
     load_profile()
 
 func load_profile() -> void:
-    var config := ConfigFile.new()
-    if config.load(PROFILE_PATH) != OK:
+    if not _load_from_path(PROFILE_PATH):
         _emit_profile_signals()
-        return
+
+func _load_from_path(path: String) -> bool:
+    var config := ConfigFile.new()
+    if config.load(path) != OK:
+        return false
 
     credits = maxi(int(config.get_value("profile", "credits", DEFAULT_CREDITS)), 0)
     var saved_group := StringName(str(config.get_value("profile", "weapon_group", "strike")))
@@ -39,16 +47,63 @@ func load_profile() -> void:
     for upgrade_id in upgrade_levels.keys():
         var saved_level := int(config.get_value("upgrades", str(upgrade_id), 0))
         upgrade_levels[upgrade_id] = clampi(saved_level, 0, get_upgrade_max_level(StringName(str(upgrade_id))))
+    active_slot = clampi(int(config.get_value("campaign", "active_slot", active_slot)), 1, SAVE_SLOT_COUNT)
+    campaign_mission = maxi(int(config.get_value("campaign", "mission", 1)), 1)
+    campaign_completed = maxi(int(config.get_value("campaign", "completed", 0)), 0)
     _emit_profile_signals()
+    return true
 
 func save_profile() -> void:
+    _save_to_path(PROFILE_PATH)
+    save_slot(active_slot)
+
+func _save_to_path(path: String) -> void:
     var config := ConfigFile.new()
     config.set_value("profile", "credits", credits)
     config.set_value("profile", "weapon_group", String(weapon_group))
     config.set_value("profile", "mech_tuning", String(mech_tuning))
     for upgrade_id in upgrade_levels.keys():
         config.set_value("upgrades", str(upgrade_id), upgrade_levels[upgrade_id])
-    config.save(PROFILE_PATH)
+    config.set_value("campaign", "active_slot", active_slot)
+    config.set_value("campaign", "mission", campaign_mission)
+    config.set_value("campaign", "completed", campaign_completed)
+    config.save(path)
+
+func save_slot(slot_id: int) -> bool:
+    if slot_id < 1 or slot_id > SAVE_SLOT_COUNT:
+        return false
+    active_slot = slot_id
+    _save_to_path(_slot_path(slot_id))
+    _save_to_path(PROFILE_PATH)
+    return true
+
+func load_slot(slot_id: int) -> bool:
+    if slot_id < 1 or slot_id > SAVE_SLOT_COUNT:
+        return false
+    if not _load_from_path(_slot_path(slot_id)):
+        return false
+    active_slot = slot_id
+    _save_to_path(PROFILE_PATH)
+    _emit_profile_signals()
+    return true
+
+func get_slot_summary(slot_id: int) -> String:
+    if slot_id < 1 or slot_id > SAVE_SLOT_COUNT:
+        return "INVALID SLOT"
+    var config := ConfigFile.new()
+    if config.load(_slot_path(slot_id)) != OK:
+        return "SLOT %02d // EMPTY" % slot_id
+    var mission := int(config.get_value("campaign", "mission", 1))
+    var completed := int(config.get_value("campaign", "completed", 0))
+    return "SLOT %02d // MISSION %02d // COMPLETE %02d" % [slot_id, mission, completed]
+
+func record_mission_complete(mission_index: int) -> void:
+    campaign_completed = maxi(campaign_completed, mission_index)
+    campaign_mission = maxi(campaign_mission, mission_index + 1)
+    save_profile()
+
+func _slot_path(slot_id: int) -> String:
+    return SAVE_SLOT_PATH_FORMAT % slot_id
 
 func get_upgrade_ids() -> Array[StringName]:
     return [&"armor", &"mobility", &"machinegun", &"rocket", &"missile"]

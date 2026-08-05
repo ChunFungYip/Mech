@@ -150,6 +150,7 @@ func set_hangar_door_open(open: bool) -> void:
     if _hangar_door == null or _hangar_door_open == open:
         return
     _hangar_door_open = open
+    AudioManager.play_sound(&"door", _hangar_door.global_position, 0.9)
     if _hangar_door_tween != null and _hangar_door_tween.is_running():
         _hangar_door_tween.kill()
     var target_y := _hangar_door_closed_y + HANGAR_DOOR_OPEN_OFFSET if open else _hangar_door_closed_y
