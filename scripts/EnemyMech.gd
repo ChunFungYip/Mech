@@ -203,16 +203,19 @@ func _build_visual() -> void:
     _visual = Node3D.new()
     _visual.name = "EnemyVisual"
     add_child(_visual)
-    if enemy_type == EnemyType.DRONE:
-        _build_drone_visual()
-    else:
-        _build_biped_visual()
-        if enemy_type == EnemyType.SPIDER:
-            _build_spider_legs()
+    match enemy_type:
+        EnemyType.SCOUT:
+            _build_scout_visual()
+        EnemyType.DRONE:
+            _build_drone_visual()
+        EnemyType.SPIDER:
+            _build_spider_visual()
+        _:
+            _build_heavy_visual()
     _build_damage_markers()
     _visual.scale = Vector3.ONE * _visual_scale
 
-func _build_biped_visual() -> void:
+func _build_heavy_visual() -> void:
     var armor_dark := Color(0.12, 0.08, 0.09)
     var armor_mid := Color(0.42, 0.14, 0.13)
     var armor_light := Color(0.68, 0.24, 0.17)
@@ -226,13 +229,61 @@ func _build_biped_visual() -> void:
     _part_box(&"right_arm", Vector3(1.42, 3.45, 0.0), Vector3(0.55, 1.45, 0.85), armor_dark)
     _part_box(&"left_arm", Vector3(-1.48, 2.65, -0.75), Vector3(0.62, 0.52, 1.75), armor_light)
     _part_box(&"right_arm", Vector3(1.48, 2.65, -0.75), Vector3(0.62, 0.52, 1.75), armor_light)
-    if enemy_type != EnemyType.SPIDER:
-        _part_box(&"left_leg", Vector3(-0.68, 1.18, 0.0), Vector3(0.78, 2.35, 1.0), armor_mid)
-        _part_box(&"right_leg", Vector3(0.68, 1.18, 0.0), Vector3(0.78, 2.35, 1.0), armor_mid)
-        _part_box(&"left_leg", Vector3(-0.68, 0.15, -0.3), Vector3(0.96, 0.3, 1.55), armor_dark)
-        _part_box(&"right_leg", Vector3(0.68, 0.15, -0.3), Vector3(0.96, 0.3, 1.55), armor_dark)
+    _part_box(&"left_leg", Vector3(-0.68, 1.18, 0.0), Vector3(0.78, 2.35, 1.0), armor_mid)
+    _part_box(&"right_leg", Vector3(0.68, 1.18, 0.0), Vector3(0.78, 2.35, 1.0), armor_mid)
+    _part_box(&"left_leg", Vector3(-0.68, 0.15, -0.3), Vector3(0.96, 0.3, 1.55), armor_dark)
+    _part_box(&"right_leg", Vector3(0.68, 0.15, -0.3), Vector3(0.96, 0.3, 1.55), armor_dark)
     _part_box(&"right_arm", Vector3(1.5, 3.0, -2.25), Vector3(0.42, 0.42, 2.45), Color(0.08, 0.06, 0.07))
     _part_box(&"right_arm", Vector3(1.5, 3.0, -3.58), Vector3(0.18, 0.18, 0.32), warning, 3.0)
+
+func _build_scout_visual() -> void:
+    var armor_dark := Color(0.025, 0.12, 0.16)
+    var armor_mid := Color(0.08, 0.34, 0.40)
+    var armor_light := Color(0.18, 0.70, 0.72)
+    var sensor := Color(0.50, 0.96, 0.92)
+    var warning := Color(1.0, 0.70, 0.10)
+    var chest := _part_box(&"lower_torso", Vector3(0.0, 1.78, 0.0), Vector3(1.35, 1.0, 1.20), armor_mid)
+    chest.rotation_degrees.x = -8.0
+    _part_box(&"upper_torso", Vector3(0.0, 2.62, -0.04), Vector3(1.18, 0.72, 1.08), armor_light)
+    _part_box(&"upper_torso", Vector3(0.0, 2.78, -0.62), Vector3(0.92, 0.20, 0.08), sensor, 3.8)
+    _part_box(&"upper_torso", Vector3(0.0, 3.30, -0.10), Vector3(0.62, 0.42, 0.70), armor_dark)
+    _part_cylinder(&"upper_torso", Vector3(0.0, 3.66, -0.18), 0.23, 0.48, sensor, 4.0)
+    _part_box(&"upper_torso", Vector3(-0.78, 2.70, 0.10), Vector3(0.12, 0.70, 0.82), armor_light, 1.0)
+    _part_box(&"upper_torso", Vector3(0.78, 2.70, 0.10), Vector3(0.12, 0.70, 0.82), armor_light, 1.0)
+    _part_box(&"left_arm", Vector3(-0.93, 2.48, -0.12), Vector3(0.38, 1.02, 0.58), armor_dark)
+    _part_box(&"right_arm", Vector3(0.93, 2.48, -0.12), Vector3(0.38, 1.02, 0.58), armor_dark)
+    _part_box(&"left_arm", Vector3(-1.02, 2.08, -0.72), Vector3(0.42, 0.34, 1.18), armor_light)
+    _part_box(&"right_arm", Vector3(1.02, 2.08, -0.72), Vector3(0.42, 0.34, 1.18), armor_light)
+    _part_box(&"right_arm", Vector3(1.12, 2.40, -1.58), Vector3(0.30, 0.30, 1.55), armor_dark)
+    _part_box(&"right_arm", Vector3(1.12, 2.40, -2.42), Vector3(0.14, 0.14, 0.24), warning, 4.0)
+    var left_leg := _part_box(&"left_leg", Vector3(-0.48, 1.02, 0.12), Vector3(0.42, 1.90, 0.62), armor_mid)
+    left_leg.rotation_degrees.z = -16.0
+    var right_leg := _part_box(&"right_leg", Vector3(0.48, 1.02, 0.12), Vector3(0.42, 1.90, 0.62), armor_mid)
+    right_leg.rotation_degrees.z = 16.0
+    _part_box(&"left_leg", Vector3(-0.70, 0.14, -0.62), Vector3(0.58, 0.28, 1.35), armor_dark)
+    _part_box(&"right_leg", Vector3(0.70, 0.14, -0.62), Vector3(0.58, 0.28, 1.35), armor_dark)
+    _part_box(&"left_leg", Vector3(-0.70, 0.18, -1.30), Vector3(0.20, 0.12, 0.18), warning, 3.5)
+    _part_box(&"right_leg", Vector3(0.70, 0.18, -1.30), Vector3(0.20, 0.12, 0.18), warning, 3.5)
+
+func _build_spider_visual() -> void:
+    var armor_dark := Color(0.08, 0.045, 0.16)
+    var armor_mid := Color(0.24, 0.10, 0.34)
+    var armor_light := Color(0.54, 0.18, 0.58)
+    var reactor := Color(0.95, 0.32, 0.86)
+    var warning := Color(1.0, 0.56, 0.12)
+    _part_box(&"lower_torso", Vector3(0.0, 0.98, 0.08), Vector3(3.05, 0.92, 2.35), armor_mid)
+    _part_box(&"lower_torso", Vector3(0.0, 1.15, -1.20), Vector3(2.20, 0.30, 0.12), warning, 2.5)
+    _part_box(&"upper_torso", Vector3(0.0, 1.72, -0.08), Vector3(2.35, 0.78, 1.82), armor_light)
+    _part_box(&"upper_torso", Vector3(0.0, 2.24, -0.22), Vector3(1.32, 0.62, 1.18), armor_dark)
+    _part_box(&"upper_torso", Vector3(0.0, 2.26, -0.84), Vector3(0.86, 0.20, 0.08), reactor, 4.0)
+    _part_cylinder(&"upper_torso", Vector3(0.0, 2.62, -0.26), 0.34, 0.28, warning, 3.5)
+    _part_box(&"left_arm", Vector3(-1.38, 1.68, -0.98), Vector3(0.54, 0.58, 1.32), armor_dark)
+    _part_box(&"right_arm", Vector3(1.38, 1.68, -0.98), Vector3(0.54, 0.58, 1.32), armor_dark)
+    _part_box(&"left_arm", Vector3(-1.42, 1.60, -1.92), Vector3(0.42, 0.42, 1.25), armor_light)
+    _part_box(&"right_arm", Vector3(1.42, 1.60, -1.92), Vector3(0.42, 0.42, 1.25), armor_light)
+    _part_box(&"left_arm", Vector3(-1.42, 1.60, -2.62), Vector3(0.18, 0.18, 0.22), warning, 4.0)
+    _part_box(&"right_arm", Vector3(1.42, 1.60, -2.62), Vector3(0.18, 0.18, 0.22), warning, 4.0)
+    _build_spider_legs()
 
 func _build_drone_visual() -> void:
     var armor_dark := Color(0.08, 0.12, 0.16)
@@ -252,17 +303,22 @@ func _build_drone_visual() -> void:
         _part_box(&"left_arm" if side < 0.0 else &"right_arm", Vector3(side * 0.76, 0.22, 0.0), Vector3(0.14, 0.10, 1.35), armor_dark)
 
 func _build_spider_legs() -> void:
-    var leg_color := Color(0.12, 0.08, 0.09)
+    var leg_color := Color(0.12, 0.055, 0.19)
+    var joint_color := Color(0.92, 0.24, 0.66)
     for leg_index in 4:
         var z_offset := -1.05 + float(leg_index) * 0.70
         for side in [-1.0, 1.0]:
             var part_id: StringName = &"left_leg" if side < 0.0 else &"right_leg"
             var hip_position := Vector3(side * (0.78 + float(leg_index) * 0.08), 1.45 - float(leg_index) * 0.10, z_offset)
             var foot_position := Vector3(side * (1.45 + float(leg_index) * 0.12), 0.62, z_offset + side * 0.32)
-            _part_box(part_id, hip_position, Vector3(0.20, 0.20, 1.05), leg_color)
-            _part_box(part_id, foot_position, Vector3(0.20, 0.20, 1.15), leg_color)
+            var upper_leg := _part_box(part_id, hip_position, Vector3(0.28, 0.28, 1.05), leg_color)
+            upper_leg.rotation_degrees.y = side * 22.0
+            _part_cylinder(part_id, hip_position + Vector3(0.0, -0.18, 0.0), 0.17, 0.22, joint_color, 2.8)
+            var lower_leg := _part_box(part_id, foot_position, Vector3(0.24, 0.24, 1.15), leg_color)
+            lower_leg.rotation_degrees.y = -side * 28.0
+            _part_box(part_id, foot_position + Vector3(0.0, -0.12, -0.24), Vector3(0.34, 0.16, 0.36), joint_color, 2.0)
 
-func _part_box(part_id: StringName, position: Vector3, size: Vector3, color: Color, emission_energy: float = 0.0) -> void:
+func _part_box(part_id: StringName, position: Vector3, size: Vector3, color: Color, emission_energy: float = 0.0) -> MeshInstance3D:
     var part_visual := _part_visuals.get(part_id) as Node3D
     if part_visual == null:
         part_visual = Node3D.new()
@@ -273,6 +329,29 @@ func _part_box(part_id: StringName, position: Vector3, size: Vector3, color: Col
     var meshes: Array = _part_meshes.get(part_id, [])
     meshes.append(mesh_instance)
     _part_meshes[part_id] = meshes
+    return mesh_instance
+
+func _part_cylinder(part_id: StringName, position: Vector3, radius: float, height: float, color: Color, emission_energy: float = 0.0) -> MeshInstance3D:
+    var part_visual := _part_visuals.get(part_id) as Node3D
+    if part_visual == null:
+        part_visual = Node3D.new()
+        part_visual.name = String(PART_DISPLAY_NAMES.get(part_id, part_id))
+        _visual.add_child(part_visual)
+        _part_visuals[part_id] = part_visual
+    var mesh_instance := MeshInstance3D.new()
+    var mesh := CylinderMesh.new()
+    mesh.top_radius = radius
+    mesh.bottom_radius = radius
+    mesh.height = height
+    mesh_instance.mesh = mesh
+    mesh_instance.position = position
+    mesh_instance.material_override = _material(color, emission_energy)
+    mesh_instance.set_meta("base_color", color)
+    part_visual.add_child(mesh_instance)
+    var meshes: Array = _part_meshes.get(part_id, [])
+    meshes.append(mesh_instance)
+    _part_meshes[part_id] = meshes
+    return mesh_instance
 
 func _build_damage_markers() -> void:
     var marker_data: Dictionary
@@ -285,14 +364,23 @@ func _build_damage_markers() -> void:
             &"left_leg": Vector3(-0.54, 0.02, -0.38),
             &"right_leg": Vector3(0.54, 0.02, -0.38),
         }
+    elif enemy_type == EnemyType.SCOUT:
+        marker_data = {
+            &"left_arm": Vector3(-1.02, 2.08, -0.74),
+            &"right_arm": Vector3(1.02, 2.08, -0.74),
+            &"upper_torso": Vector3(0.0, 2.78, -0.66),
+            &"lower_torso": Vector3(0.0, 1.78, -0.64),
+            &"left_leg": Vector3(-0.48, 1.04, -0.50),
+            &"right_leg": Vector3(0.48, 1.04, -0.50),
+        }
     elif enemy_type == EnemyType.SPIDER:
         marker_data = {
-            &"left_arm": Vector3(-1.48, 2.70, -0.72),
-            &"right_arm": Vector3(1.48, 2.70, -0.72),
-            &"upper_torso": Vector3(0.0, 3.35, -0.84),
-            &"lower_torso": Vector3(0.0, 2.30, -0.80),
-            &"left_leg": Vector3(-1.20, 0.76, -0.56),
-            &"right_leg": Vector3(1.20, 0.76, -0.56),
+            &"left_arm": Vector3(-1.42, 1.60, -1.90),
+            &"right_arm": Vector3(1.42, 1.60, -1.90),
+            &"upper_torso": Vector3(0.0, 2.20, -0.82),
+            &"lower_torso": Vector3(0.0, 1.12, -1.16),
+            &"left_leg": Vector3(-1.45, 0.66, -0.72),
+            &"right_leg": Vector3(1.45, 0.66, -0.72),
         }
     else:
         marker_data = {
@@ -509,6 +597,22 @@ func _get_hit_part(hit_position: Vector3) -> StringName:
         if absf(local_hit.x) >= 0.72:
             return &"left_arm" if local_hit.x < 0.0 else &"right_arm"
         if local_hit.y >= 0.62:
+            return &"upper_torso"
+        return &"lower_torso"
+    if enemy_type == EnemyType.SCOUT:
+        if local_hit.y <= 0.45:
+            return &"left_leg" if local_hit.x < 0.0 else &"right_leg"
+        if absf(local_hit.x) >= 0.72:
+            return &"left_arm" if local_hit.x < 0.0 else &"right_arm"
+        if local_hit.y >= 2.35:
+            return &"upper_torso"
+        return &"lower_torso"
+    if enemy_type == EnemyType.SPIDER:
+        if local_hit.y <= 0.72 and absf(local_hit.x) >= 0.75:
+            return &"left_leg" if local_hit.x < 0.0 else &"right_leg"
+        if absf(local_hit.x) >= 1.05 and local_hit.y < 2.15:
+            return &"left_arm" if local_hit.x < 0.0 else &"right_arm"
+        if local_hit.y >= 1.82:
             return &"upper_torso"
         return &"lower_torso"
     if local_hit.y <= 2.25:

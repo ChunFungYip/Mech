@@ -275,7 +275,6 @@ func _spawn_random_city_encounter(point_index: int, center: Vector3) -> void:
 	if hud != null and hud.has_method("_on_announcement"):
 		hud.call("_on_announcement", "CITY AMBUSH // POINT %02d // %02d HOSTILES" % [_random_encounters_triggered, enemy_count])
 
-func _spawn_enemy(spawn_position: Vector3, encounter_name: String, enemy_type: int = ENEMY_TYPE_HEAVY) -> void:
 func _spawn_enemy(spawn_position: Vector3, encounter_name: String, enemy_type: int = ENEMY_TYPE_HEAVY) -> Node3D:
 	_enemy_spawn_serial += 1
 	var enemy: Node3D = EnemyMechScript.new()
