@@ -22,6 +22,13 @@ The prototype already provides a playable neon-city combat loop with four enemy 
 - Make mission completion and failure rules reusable.
 - Add authored mission briefings and rewards.
 
+#### Batch 2 implementation
+
+The first mission-variety slice is an optional **City Contract**. Triggering three
+random city ambushes completes the contract and awards 300 credits. It does not
+block the main boss route, so exploration is rewarded without making the core
+mission unpredictable.
+
 ### Batch 3 — World content
 
 - Add additional districts and distinct combat arenas.

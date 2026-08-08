@@ -51,6 +51,7 @@ var _city_spawn_points: Array[Vector3] = []
 var _city_spawn_triggered: Array[bool] = []
 var _enemy_spawn_serial: int = 0
 var _random_encounters_triggered: int = 0
+var _city_contract_complete: bool = false
 var _next_wave_timer: float = 0.0
 var _wave_clear_announced: bool = false
 var _kill_streak: int = 0
@@ -59,6 +60,8 @@ var _kill_streak_timer: float = 0.0
 const KILL_STREAK_WINDOW_SECONDS: float = 6.0
 const KILL_STREAK_BONUS_PER_KILL: int = 25
 const KILL_STREAK_DISPLAY_THRESHOLD: int = 2
+const CITY_CONTRACT_ENCOUNTERS_REQUIRED: int = 3
+const CITY_CONTRACT_REWARD: int = 300
 
 const RANDOM_CITY_SPAWN_POINT_COUNT: int = 8
 const RANDOM_CITY_SPAWN_TRIGGER_DISTANCE: float = 20.0
@@ -284,6 +287,11 @@ func _spawn_random_city_encounter(point_index: int, center: Vector3) -> void:
 		_spawn_enemy(spawn_position, "AMBUSH_%02d" % _random_encounters_triggered, enemy_type)
 	if hud != null and hud.has_method("_on_announcement"):
 		hud.call("_on_announcement", "CITY AMBUSH // POINT %02d // %02d HOSTILES" % [_random_encounters_triggered, enemy_count])
+	if not _city_contract_complete and _random_encounters_triggered >= CITY_CONTRACT_ENCOUNTERS_REQUIRED:
+		_city_contract_complete = true
+		UpgradeManager.add_credits(CITY_CONTRACT_REWARD)
+		if hud != null and hud.has_method("_on_announcement"):
+			hud.call("_on_announcement", "CITY CONTRACT COMPLETE // +%d CREDITS" % CITY_CONTRACT_REWARD)
 
 func _spawn_enemy(spawn_position: Vector3, encounter_name: String, enemy_type: int = ENEMY_TYPE_HEAVY) -> Node3D:
 	_enemy_spawn_serial += 1
@@ -550,6 +558,7 @@ func restart_mission() -> void:
 	kills = 0
 	_city_spawn_triggered.fill(false)
 	_random_encounters_triggered = 0
+	_city_contract_complete = false
 	_clear_combat_units()
 	_reset_boss_for_checkpoint()
 	if is_instance_valid(player) and player.has_method("restore_after_failure"):
@@ -607,7 +616,10 @@ func get_mission_objective() -> String:
 	if not _boss_defeated:
 		if _boss_engaged:
 			return "OBJECTIVE // DEFEAT CENTRAL MARKET BOSS"
-		return "OBJECTIVE // REACH CENTRAL MARKET"
+		var contract_text := " // CONTRACT %02d/%02d" % [_random_encounters_triggered, CITY_CONTRACT_ENCOUNTERS_REQUIRED]
+		if _city_contract_complete:
+			contract_text = " // CONTRACT COMPLETE"
+		return "OBJECTIVE // REACH CENTRAL MARKET%s" % contract_text
 	return "OBJECTIVE // RETURN TO HOME BASE"
 
 func _on_enemy_died(_enemy: Node) -> void:
