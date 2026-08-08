@@ -287,7 +287,7 @@ func _spawn_random_city_encounter(point_index: int, center: Vector3) -> void:
 		_spawn_enemy(spawn_position, "AMBUSH_%02d" % _random_encounters_triggered, enemy_type)
 	if hud != null and hud.has_method("_on_announcement"):
 		hud.call("_on_announcement", "CITY AMBUSH // POINT %02d // %02d HOSTILES" % [_random_encounters_triggered, enemy_count])
-	if not _city_contract_complete and _random_encounters_triggered >= CITY_CONTRACT_ENCOUNTERS_REQUIRED:
+	if not _city_contract_complete and _random_encounters_triggered == CITY_CONTRACT_ENCOUNTERS_REQUIRED:
 		_city_contract_complete = true
 		UpgradeManager.add_credits(CITY_CONTRACT_REWARD)
 		if hud != null and hud.has_method("_on_announcement"):
