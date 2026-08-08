@@ -200,7 +200,7 @@ func _process(delta: float) -> void:
 	var contacts := int(game.call("get_enemy_count"))
 	var kills := int(game.get("kills"))
 	_objective_label.text = str(game.call("get_mission_objective"))
-	_wave_label.text = "WAVE %02d // CONTACTS %02d // CONFIRMED %02d" % [wave, contacts, kills]
+	_wave_label.text = "WAVE %02d // CONTACTS %02d // CONFIRMED %02d // SCORE %05d // SALVAGE %s" % [wave, contacts, kills, int(game.call("get_mission_score")), str(game.call("get_salvage_status"))]
 	_view_label.text = "VIEW // " + ("FIRST PERSON" if player.get("first_person") == true else "THIRD PERSON")
 	if _message_timer > 0.0:
 		_message_timer = maxf(_message_timer - delta, 0.0)

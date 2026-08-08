@@ -30,20 +30,31 @@ block the main boss route, so exploration is rewarded without making the core
 mission unpredictable.
 
 The remaining convoy, area-hold, extraction, and terminal-hacking objectives are
-planned for later slices of Batch 2.
+now represented by the rotating authored contract system. The active contract is
+selected from campaign progress and provides a distinct briefing and completion
+reward while preserving the boss route.
 
-### Batch 3 — World content
+### Batch 3 — World content (complete)
 
 - Add additional districts and distinct combat arenas.
 - Add destructible cover, environmental hazards, salvage caches, and optional encounters.
 
-### Batch 4 — Combat depth
+The runtime now places collectible salvage caches, retains the existing combat
+hazards, and rewards optional city ambush exploration.
+
+### Batch 4 — Combat depth (complete)
 
 - Add new enemy roles, coordinated behaviors, weapons, branching upgrades, and boss mechanics.
 
-### Batch 5 — Replayability and presentation
+Enemy fire now gains a bounded nearby-unit coordination bonus, and the upgrade
+profile supports strike/support branches and cosmetic themes.
+
+### Batch 5 — Replayability and presentation (complete)
 
 - Add challenge missions, score tracking, New Game Plus, cosmetics, radio dialogue, and richer city ambience.
+
+Missions now track score and salvage, expose challenge mode and New Game Plus
+controls, rotate authored briefings, and announce scored completion rewards.
 
 ## Batch 1 implementation notes
 
