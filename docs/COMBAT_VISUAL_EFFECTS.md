@@ -270,3 +270,23 @@ The current effects are short-lived and local, but large enemy waves can still c
 - Avoid enabling shadows on small effect lights.
 - Remove expired projectiles and visual effects promptly.
 - Keep the center-screen cockpit geometry simple so first-person rendering stays clear.
+
+## Runtime Validation
+
+The available automated runtime check is:
+
+```text
+godot --headless --path . --scene res://tests/mission_runtime_smoke.tscn
+```
+
+It verifies scene startup and representative combat-object creation, but it does not render or inspect the effects. Use an interactive Godot run to check projectile trails, fades, impact cleanup, boss phases, cockpit readability, and reduced-effects settings.
+
+## 執行期驗證
+
+目前可用的自動化執行期檢查如下：
+
+```text
+godot --headless --path . --scene res://tests/mission_runtime_smoke.tscn
+```
+
+它會驗證場景啟動及代表性的戰鬥物件建立，但不會渲染或檢查視覺效果。請使用 Godot 互動執行，確認投射物軌跡、淡出、命中特效清理、Boss 階段、駕駛艙可讀性及降低效果設定。

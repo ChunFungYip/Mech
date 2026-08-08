@@ -557,7 +557,10 @@ func _fire_at_target(target_position: Vector3) -> void:
         var current := collider
         while current != null:
             if current == target:
-                target.call("take_damage", attack_damage, hit_position)
+                var coordinated_damage := attack_damage
+                if game != null and game.has_method("get_enemy_coordination_bonus"):
+                    coordinated_damage *= 1.0 + float(game.call("get_enemy_coordination_bonus", self))
+                target.call("take_damage", coordinated_damage, hit_position)
                 break
             current = current.get_parent()
     if game != null and game.has_method("spawn_tracer"):

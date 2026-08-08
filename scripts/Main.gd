@@ -51,8 +51,32 @@ var _city_spawn_points: Array[Vector3] = []
 var _city_spawn_triggered: Array[bool] = []
 var _enemy_spawn_serial: int = 0
 var _random_encounters_triggered: int = 0
+var _city_contract_complete: bool = false
 var _next_wave_timer: float = 0.0
 var _wave_clear_announced: bool = false
+var _kill_streak: int = 0
+var _kill_streak_timer: float = 0.0
+var mission_variant: int = 0
+var mission_progress: float = 0.0
+var mission_score: int = 0
+var challenge_mode: bool = false
+var new_game_plus: int = 0
+var cosmetic_theme: StringName = &"neon"
+var _salvage_collected: int = 0
+var _salvage_nodes: Array[Node3D] = []
+var _coordination_cache: Dictionary = {}
+var _coordination_cache_time: float = -1.0
+
+const KILL_STREAK_WINDOW_SECONDS: float = 6.0
+const KILL_STREAK_BONUS_PER_KILL: int = 25
+const KILL_STREAK_DISPLAY_THRESHOLD: int = 2
+const CITY_CONTRACT_ENCOUNTERS_REQUIRED: int = 3
+const CITY_CONTRACT_REWARD: int = 300
+const MISSION_VARIANT_NAMES: Array[String] = ["CONVOY DEFENSE", "AREA HOLD", "EXTRACTION", "TERMINAL HACK"]
+const MISSION_VARIANT_REWARDS: Array[int] = [450, 500, 550, 600]
+const SALVAGE_REWARD: int = 125
+const SALVAGE_SCORE_BONUS: int = 250
+const SALVAGE_CACHE_COUNT: int = 5
 
 const RANDOM_CITY_SPAWN_POINT_COUNT: int = 8
 const RANDOM_CITY_SPAWN_TRIGGER_DISTANCE: float = 20.0
@@ -65,6 +89,9 @@ const RANDOM_CITY_SPAWN_Z_MIN: float = -56.0
 const RANDOM_CITY_SPAWN_Z_MAX: float = 16.0
 
 func _ready() -> void:
+	mission_variant = maxi(int(UpgradeManager.campaign_mission) - 1, 0) % MISSION_VARIANT_NAMES.size()
+	challenge_mode = UpgradeManager.campaign_completed > 0
+	new_game_plus = maxi(UpgradeManager.campaign_completed - 1, 0)
 	_build_environment()
 	SettingsManager.difficulty_changed.connect(_on_difficulty_changed)
 	district = HongKongDistrictScript.new()
@@ -81,6 +108,7 @@ func _ready() -> void:
 	_spawn_mission_overlay()
 	_spawn_tutorial_overlay()
 	_spawn_repair_bot()
+	_spawn_world_content()
 	_spawn_wave()
 
 func _build_environment() -> void:
@@ -160,11 +188,19 @@ func _spawn_wave() -> void:
 	_wave_clear_announced = false
 
 func _process(delta: float) -> void:
+	if _kill_streak_timer > 0.0:
+		_kill_streak_timer -= delta
+		if _kill_streak_timer <= 0.0:
+			_kill_streak = 0
 	_update_mission_state()
+	if _coordination_cache_time < 0.0 or Time.get_ticks_msec() / 1000.0 - _coordination_cache_time > 0.5:
+		_coordination_cache.clear()
+		_coordination_cache_time = Time.get_ticks_msec() / 1000.0
 	_keep_enemies_out_of_hangar()
 	_update_boss_area()
 	_update_home_base_door()
 	_check_random_city_spawn_points()
+	_update_optional_objectives(delta)
 	if not _boss_defeated and not _mission_complete and get_enemy_count() == 0:
 		if not _wave_clear_announced:
 			_wave_clear_announced = true
@@ -217,12 +253,15 @@ func _update_mission_state() -> void:
 			hud.call("_on_announcement", "SORTIE LIVE // REACH CENTRAL MARKET")
 	if _boss_defeated and not _mission_complete and _horizontal_distance_from_hangar(player.global_position) < 22.0:
 		_mission_complete = true
+		var authored_reward := MISSION_VARIANT_REWARDS[mission_variant % MISSION_VARIANT_REWARDS.size()]
+		UpgradeManager.add_credits(authored_reward)
+		mission_score += authored_reward
 		AudioManager.play_sound(&"mission_complete", player.global_position, 1.0)
 		if UpgradeManager.has_method("record_mission_complete"):
 			UpgradeManager.call("record_mission_complete", 1)
 		save_game()
 		if hud != null and hud.has_method("_on_announcement"):
-			hud.call("_on_announcement", "MISSION COMPLETE // RETURNED TO HOME BASE")
+			hud.call("_on_announcement", "MISSION COMPLETE // %s // +%d CREDITS // SCORE %05d" % [MISSION_VARIANT_NAMES[mission_variant], authored_reward, mission_score])
 		if mission_overlay != null and mission_overlay.has_method("show_complete"):
 			mission_overlay.call("show_complete")
 
@@ -274,6 +313,42 @@ func _spawn_random_city_encounter(point_index: int, center: Vector3) -> void:
 		_spawn_enemy(spawn_position, "AMBUSH_%02d" % _random_encounters_triggered, enemy_type)
 	if hud != null and hud.has_method("_on_announcement"):
 		hud.call("_on_announcement", "CITY AMBUSH // POINT %02d // %02d HOSTILES" % [_random_encounters_triggered, enemy_count])
+	if not _city_contract_complete and _random_encounters_triggered == CITY_CONTRACT_ENCOUNTERS_REQUIRED:
+		_city_contract_complete = true
+		UpgradeManager.add_credits(CITY_CONTRACT_REWARD)
+		if hud != null and hud.has_method("_on_announcement"):
+			hud.call_deferred("_on_announcement", "CITY CONTRACT COMPLETE // +%d CREDITS" % CITY_CONTRACT_REWARD)
+
+func _spawn_world_content() -> void:
+	for index in SALVAGE_CACHE_COUNT:
+		var salvage := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(0.8, 0.8, 0.8)
+		salvage.mesh = mesh
+		salvage.position = Vector3(-11.0 + float(index) * 5.5, 0.45, 24.0 - float(index % 2) * 9.0)
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Color(0.12, 0.86, 0.90)
+		material.emission_enabled = true
+		material.emission = material.albedo_color
+		material.emission_energy_multiplier = 3.0
+		salvage.material_override = material
+		add_child(salvage)
+		_salvage_nodes.append(salvage)
+
+func _update_optional_objectives(delta: float) -> void:
+	if not _mission_deployed or _mission_complete or _boss_defeated:
+		return
+	for salvage in _salvage_nodes:
+		if salvage == null or not is_instance_valid(salvage) or salvage.visible == false:
+			continue
+		if player.global_position.distance_to(salvage.global_position) < 2.4:
+			salvage.visible = false
+			_salvage_collected += 1
+			mission_score += SALVAGE_SCORE_BONUS
+			UpgradeManager.add_credits(SALVAGE_REWARD)
+			if hud != null and hud.has_method("_on_announcement"):
+				hud.call("_on_announcement", "SALVAGE RECOVERED // +%d CREDITS" % SALVAGE_REWARD)
+	mission_progress = clampf(mission_progress + delta * 0.002, 0.0, 1.0)
 
 func _spawn_enemy(spawn_position: Vector3, encounter_name: String, enemy_type: int = ENEMY_TYPE_HEAVY) -> Node3D:
 	_enemy_spawn_serial += 1
@@ -320,6 +395,20 @@ func get_enemy_target_position() -> Vector3:
 			away_from_hangar = Vector3(0.0, 0.0, -1.0)
 		target_position = HANGAR_SAFE_CENTER + away_from_hangar.normalized() * HANGAR_NO_ENEMY_RADIUS
 	return target_position
+
+func get_enemy_coordination_bonus(enemy: Node3D) -> float:
+	var cache_key := enemy.get_instance_id()
+	if _coordination_cache.has(cache_key):
+		return float(_coordination_cache[cache_key])
+	var nearby := 0
+	for hostile in get_tree().get_nodes_in_group("enemy_mechs"):
+		if hostile == enemy or hostile.get("is_boss") == true:
+			continue
+		if hostile.global_position.distance_to(enemy.global_position) < 14.0:
+			nearby += 1
+	var bonus := minf(float(nearby) * 0.08, 0.24)
+	_coordination_cache[cache_key] = bonus
+	return bonus
 
 func _keep_enemies_out_of_hangar() -> void:
 	for enemy in get_tree().get_nodes_in_group("enemy_mechs"):
@@ -447,6 +536,13 @@ func _build_game_state() -> Dictionary:
 		"kills": kills,
 		"city_spawn_triggered": triggered_points,
 		"random_encounters_triggered": _random_encounters_triggered,
+		"mission_variant": mission_variant,
+		"mission_progress": mission_progress,
+		"mission_score": mission_score,
+		"salvage_collected": _salvage_collected,
+		"challenge_mode": challenge_mode,
+		"new_game_plus": new_game_plus,
+		"cosmetic_theme": String(cosmetic_theme),
 		"next_wave_timer": _next_wave_timer,
 		"wave_clear_announced": _wave_clear_announced,
 		"enemies": enemy_states,
@@ -476,6 +572,13 @@ func _restore_game_state(state: Dictionary) -> void:
 	wave = maxi(int(state.get("wave", 1)), 1)
 	kills = maxi(int(state.get("kills", 0)), 0)
 	_random_encounters_triggered = maxi(int(state.get("random_encounters_triggered", 0)), 0)
+	mission_variant = clampi(int(state.get("mission_variant", mission_variant)), 0, MISSION_VARIANT_NAMES.size() - 1)
+	mission_progress = clampf(float(state.get("mission_progress", 0.0)), 0.0, 1.0)
+	mission_score = maxi(int(state.get("mission_score", 0)), 0)
+	_salvage_collected = maxi(int(state.get("salvage_collected", 0)), 0)
+	challenge_mode = state.get("challenge_mode", challenge_mode) == true
+	new_game_plus = maxi(int(state.get("new_game_plus", new_game_plus)), 0)
+	cosmetic_theme = StringName(str(state.get("cosmetic_theme", String(cosmetic_theme))))
 	_next_wave_timer = maxf(float(state.get("next_wave_timer", 0.0)), 0.0)
 	_wave_clear_announced = state.get("wave_clear_announced", false) == true
 	_city_spawn_triggered.clear()
@@ -522,6 +625,8 @@ func restart_from_checkpoint() -> void:
 		player.call("restore_after_failure", _checkpoint_position)
 	_wave_clear_announced = false
 	_next_wave_timer = 0.0
+	_kill_streak = 0
+	_kill_streak_timer = 0.0
 	_spawn_wave()
 	if mission_overlay != null:
 		mission_overlay.call("close_overlay")
@@ -537,13 +642,22 @@ func restart_mission() -> void:
 	wave = 1
 	kills = 0
 	_city_spawn_triggered.fill(false)
+	mission_progress = 0.0
+	mission_score = 0
+	_salvage_collected = 0
+	for salvage in _salvage_nodes:
+		if salvage != null and is_instance_valid(salvage):
+			salvage.visible = true
 	_random_encounters_triggered = 0
+	_city_contract_complete = false
 	_clear_combat_units()
 	_reset_boss_for_checkpoint()
 	if is_instance_valid(player) and player.has_method("restore_after_failure"):
 		player.call("restore_after_failure", PLAYER_SPAWN_POSITION)
 	_wave_clear_announced = false
 	_next_wave_timer = 0.0
+	_kill_streak = 0
+	_kill_streak_timer = 0.0
 	_spawn_wave()
 	if mission_overlay != null:
 		mission_overlay.call("close_overlay")
@@ -593,14 +707,45 @@ func get_mission_objective() -> String:
 	if not _boss_defeated:
 		if _boss_engaged:
 			return "OBJECTIVE // DEFEAT CENTRAL MARKET BOSS"
-		return "OBJECTIVE // REACH CENTRAL MARKET"
+		var contract_text := " // CONTRACT %02d/%02d" % [_random_encounters_triggered, CITY_CONTRACT_ENCOUNTERS_REQUIRED]
+		if _city_contract_complete:
+			contract_text = " // CONTRACT COMPLETE"
+		var variant := MISSION_VARIANT_NAMES[mission_variant % MISSION_VARIANT_NAMES.size()]
+		return "OBJECTIVE // %s // REACH CENTRAL MARKET%s" % [variant, contract_text]
 	return "OBJECTIVE // RETURN TO HOME BASE"
+
+func get_mission_briefing() -> String:
+	var variant := MISSION_VARIANT_NAMES[mission_variant % MISSION_VARIANT_NAMES.size()]
+	return "%s // %d CREDIT AUTHORED CONTRACT" % [variant, MISSION_VARIANT_REWARDS[mission_variant % MISSION_VARIANT_REWARDS.size()]]
+
+func get_mission_score() -> int:
+	return mission_score
+
+func get_salvage_status() -> String:
+	return "%02d/%02d" % [_salvage_collected, SALVAGE_CACHE_COUNT]
+
+func set_challenge_mode(enabled: bool) -> void:
+	challenge_mode = enabled
+	if enabled:
+		SettingsManager.set_difficulty(2)
+
+func start_new_game_plus() -> void:
+	new_game_plus += 1
+	UpgradeManager.add_credits(500)
+	if hud != null and hud.has_method("_on_announcement"):
+		hud.call("_on_announcement", "NEW GAME PLUS %02d // ENEMY THREAT INCREASED" % new_game_plus)
+	restart_mission()
 
 func _on_enemy_died(_enemy: Node) -> void:
 	kills += 1
-	UpgradeManager.add_credits(100)
+	_kill_streak = _kill_streak + 1 if _kill_streak_timer > 0.0 else 1
+	_kill_streak_timer = KILL_STREAK_WINDOW_SECONDS
+	var reward := 100 + (_kill_streak - 1) * KILL_STREAK_BONUS_PER_KILL
+	mission_score += reward
+	UpgradeManager.add_credits(reward)
 	if hud != null and hud.has_method("_on_announcement"):
-		hud.call("_on_announcement", "HOSTILE DISABLED // CONFIRMED %02d // +100 CREDITS" % kills)
+		var streak_text := " // STREAK x%02d" % _kill_streak if _kill_streak >= KILL_STREAK_DISPLAY_THRESHOLD else ""
+		hud.call("_on_announcement", "HOSTILE DISABLED // CONFIRMED %02d // +%d CREDITS%s" % [kills, reward, streak_text])
 
 func spawn_player_rocket(origin: Vector3, direction: Vector3, shooter: Node, damage: float = 110.0, explosion_radius: float = 5.0) -> void:
 	var rocket: Node3D = RocketProjectileScript.new()
