@@ -53,6 +53,11 @@ var _enemy_spawn_serial: int = 0
 var _random_encounters_triggered: int = 0
 var _next_wave_timer: float = 0.0
 var _wave_clear_announced: bool = false
+var _kill_streak: int = 0
+var _kill_streak_timer: float = 0.0
+
+const KILL_STREAK_WINDOW_SECONDS: float = 6.0
+const KILL_STREAK_BONUS_PER_KILL: int = 25
 
 const RANDOM_CITY_SPAWN_POINT_COUNT: int = 8
 const RANDOM_CITY_SPAWN_TRIGGER_DISTANCE: float = 20.0
@@ -160,6 +165,10 @@ func _spawn_wave() -> void:
 	_wave_clear_announced = false
 
 func _process(delta: float) -> void:
+	if _kill_streak_timer > 0.0:
+		_kill_streak_timer -= delta
+		if _kill_streak_timer <= 0.0:
+			_kill_streak = 0
 	_update_mission_state()
 	_keep_enemies_out_of_hangar()
 	_update_boss_area()
@@ -522,6 +531,8 @@ func restart_from_checkpoint() -> void:
 		player.call("restore_after_failure", _checkpoint_position)
 	_wave_clear_announced = false
 	_next_wave_timer = 0.0
+	_kill_streak = 0
+	_kill_streak_timer = 0.0
 	_spawn_wave()
 	if mission_overlay != null:
 		mission_overlay.call("close_overlay")
@@ -544,6 +555,8 @@ func restart_mission() -> void:
 		player.call("restore_after_failure", PLAYER_SPAWN_POSITION)
 	_wave_clear_announced = false
 	_next_wave_timer = 0.0
+	_kill_streak = 0
+	_kill_streak_timer = 0.0
 	_spawn_wave()
 	if mission_overlay != null:
 		mission_overlay.call("close_overlay")
@@ -598,9 +611,13 @@ func get_mission_objective() -> String:
 
 func _on_enemy_died(_enemy: Node) -> void:
 	kills += 1
-	UpgradeManager.add_credits(100)
+	_kill_streak = _kill_streak + 1 if _kill_streak_timer > 0.0 else 1
+	_kill_streak_timer = KILL_STREAK_WINDOW_SECONDS
+	var reward := 100 + (_kill_streak - 1) * KILL_STREAK_BONUS_PER_KILL
+	UpgradeManager.add_credits(reward)
 	if hud != null and hud.has_method("_on_announcement"):
-		hud.call("_on_announcement", "HOSTILE DISABLED // CONFIRMED %02d // +100 CREDITS" % kills)
+		var streak_text := " // STREAK x%02d" % _kill_streak if _kill_streak >= 2 else ""
+		hud.call("_on_announcement", "HOSTILE DISABLED // CONFIRMED %02d // +%d CREDITS%s" % [kills, reward, streak_text])
 
 func spawn_player_rocket(origin: Vector3, direction: Vector3, shooter: Node, damage: float = 110.0, explosion_radius: float = 5.0) -> void:
 	var rocket: Node3D = RocketProjectileScript.new()
