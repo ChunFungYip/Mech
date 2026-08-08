@@ -58,6 +58,7 @@ var _kill_streak_timer: float = 0.0
 
 const KILL_STREAK_WINDOW_SECONDS: float = 6.0
 const KILL_STREAK_BONUS_PER_KILL: int = 25
+const KILL_STREAK_DISPLAY_THRESHOLD: int = 2
 
 const RANDOM_CITY_SPAWN_POINT_COUNT: int = 8
 const RANDOM_CITY_SPAWN_TRIGGER_DISTANCE: float = 20.0
@@ -616,7 +617,7 @@ func _on_enemy_died(_enemy: Node) -> void:
 	var reward := 100 + (_kill_streak - 1) * KILL_STREAK_BONUS_PER_KILL
 	UpgradeManager.add_credits(reward)
 	if hud != null and hud.has_method("_on_announcement"):
-		var streak_text := " // STREAK x%02d" % _kill_streak if _kill_streak >= 2 else ""
+		var streak_text := " // STREAK x%02d" % _kill_streak if _kill_streak >= KILL_STREAK_DISPLAY_THRESHOLD else ""
 		hud.call("_on_announcement", "HOSTILE DISABLED // CONFIRMED %02d // +%d CREDITS%s" % [kills, reward, streak_text])
 
 func spawn_player_rocket(origin: Vector3, direction: Vector3, shooter: Node, damage: float = 110.0, explosion_radius: float = 5.0) -> void:
