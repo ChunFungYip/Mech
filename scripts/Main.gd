@@ -64,6 +64,8 @@ var new_game_plus: int = 0
 var cosmetic_theme: StringName = &"neon"
 var _salvage_collected: int = 0
 var _salvage_nodes: Array[Node3D] = []
+var _coordination_cache: Dictionary = {}
+var _coordination_cache_time: float = -1.0
 
 const KILL_STREAK_WINDOW_SECONDS: float = 6.0
 const KILL_STREAK_BONUS_PER_KILL: int = 25
@@ -74,6 +76,7 @@ const MISSION_VARIANT_NAMES: Array[String] = ["CONVOY DEFENSE", "AREA HOLD", "EX
 const MISSION_VARIANT_REWARDS: Array[int] = [450, 500, 550, 600]
 const SALVAGE_REWARD: int = 125
 const SALVAGE_SCORE_BONUS: int = 250
+const SALVAGE_CACHE_COUNT: int = 5
 
 const RANDOM_CITY_SPAWN_POINT_COUNT: int = 8
 const RANDOM_CITY_SPAWN_TRIGGER_DISTANCE: float = 20.0
@@ -190,6 +193,9 @@ func _process(delta: float) -> void:
 		if _kill_streak_timer <= 0.0:
 			_kill_streak = 0
 	_update_mission_state()
+	if _coordination_cache_time < 0.0 or Time.get_ticks_msec() / 1000.0 - _coordination_cache_time > 0.5:
+		_coordination_cache.clear()
+		_coordination_cache_time = Time.get_ticks_msec() / 1000.0
 	_keep_enemies_out_of_hangar()
 	_update_boss_area()
 	_update_home_base_door()
@@ -314,7 +320,7 @@ func _spawn_random_city_encounter(point_index: int, center: Vector3) -> void:
 			hud.call_deferred("_on_announcement", "CITY CONTRACT COMPLETE // +%d CREDITS" % CITY_CONTRACT_REWARD)
 
 func _spawn_world_content() -> void:
-	for index in 5:
+	for index in SALVAGE_CACHE_COUNT:
 		var salvage := MeshInstance3D.new()
 		var mesh := BoxMesh.new()
 		mesh.size = Vector3(0.8, 0.8, 0.8)
@@ -391,13 +397,18 @@ func get_enemy_target_position() -> Vector3:
 	return target_position
 
 func get_enemy_coordination_bonus(enemy: Node3D) -> float:
+	var cache_key := enemy.get_instance_id()
+	if _coordination_cache.has(cache_key):
+		return float(_coordination_cache[cache_key])
 	var nearby := 0
 	for hostile in get_tree().get_nodes_in_group("enemy_mechs"):
 		if hostile == enemy or hostile.get("is_boss") == true:
 			continue
 		if hostile.global_position.distance_to(enemy.global_position) < 14.0:
 			nearby += 1
-	return minf(float(nearby) * 0.08, 0.24)
+	var bonus := minf(float(nearby) * 0.08, 0.24)
+	_coordination_cache[cache_key] = bonus
+	return bonus
 
 func _keep_enemies_out_of_hangar() -> void:
 	for enemy in get_tree().get_nodes_in_group("enemy_mechs"):
@@ -711,7 +722,7 @@ func get_mission_score() -> int:
 	return mission_score
 
 func get_salvage_status() -> String:
-	return "%02d/%02d" % [_salvage_collected, _salvage_nodes.size()]
+	return "%02d/%02d" % [_salvage_collected, SALVAGE_CACHE_COUNT]
 
 func set_challenge_mode(enabled: bool) -> void:
 	challenge_mode = enabled
@@ -721,9 +732,9 @@ func set_challenge_mode(enabled: bool) -> void:
 func start_new_game_plus() -> void:
 	new_game_plus += 1
 	UpgradeManager.add_credits(500)
-	restart_mission()
 	if hud != null and hud.has_method("_on_announcement"):
 		hud.call("_on_announcement", "NEW GAME PLUS %02d // ENEMY THREAT INCREASED" % new_game_plus)
+	restart_mission()
 
 func _on_enemy_died(_enemy: Node) -> void:
 	kills += 1
