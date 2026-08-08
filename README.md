@@ -72,6 +72,26 @@ The center of the city contains the Central Market Siege Boss. Entering its `18 
 
 The world is assembled by scripts when the main scene starts. There is no separate level editor scene containing the full city layout.
 
+## Runtime Validation
+
+The repository includes an automated Godot smoke-test scene at `res://tests/mission_runtime_smoke.tscn`. When the Godot 4.7 executable is available, run it from the project root:
+
+```text
+godot --headless --path . --scene res://tests/mission_runtime_smoke.tscn
+```
+
+The smoke test covers scene startup, checkpoint restart, mission restart, EMP and boss hazard/projectile creation, and campaign save/load restoration. It does not replace interactive playtesting of combat, audio, visual effects, or UI at the target viewport size.
+
+## 執行期驗證
+
+專案包含自動化 Godot 冒煙測試場景 `res://tests/mission_runtime_smoke.tscn`。如果系統提供 Godot 4.7 執行檔，請在專案根目錄執行：
+
+```text
+godot --headless --path . --scene res://tests/mission_runtime_smoke.tscn
+```
+
+冒煙測試涵蓋場景啟動、檢查點重啟、任務重啟、EMP 與 Boss 危險區域／投射物建立，以及戰役存檔載入還原。它不能取代在目標視窗大小下，對戰鬥、音效、視覺效果及介面的互動測試。
+
 ## Controls
 
 ### Basic Movement

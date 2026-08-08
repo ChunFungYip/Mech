@@ -87,3 +87,23 @@ Recommended additions after the current generated layer is verified in-game:
 3. Add footstep and heavy landing sounds.
 4. Add audio buses for SFX, ambience, music, and dialogue.
 5. Add reverb and occlusion when the project has authored audio assets.
+
+## Runtime Validation
+
+When Godot 4.7 is available, run the repository smoke test from the project root:
+
+```text
+godot --headless --path . --scene res://tests/mission_runtime_smoke.tscn
+```
+
+Headless mode verifies that startup and shutdown remain clean; it intentionally skips audio initialization. Interactive runtime testing is still required to confirm generated voices, attenuation, panning, volume changes, and simultaneous-voice behavior.
+
+## 執行期驗證
+
+如果系統提供 Godot 4.7，請在專案根目錄執行以下冒煙測試：
+
+```text
+godot --headless --path . --scene res://tests/mission_runtime_smoke.tscn
+```
+
+無頭模式會驗證啟動與關閉流程保持乾淨；它會刻意略過音效初始化。仍需在遊戲執行期間互動確認程序化音效、距離衰減、聲道平衡、音量變更及同時音效數量的行為。

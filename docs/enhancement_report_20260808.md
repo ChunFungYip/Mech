@@ -66,3 +66,23 @@ Kills made within six seconds continue the streak. Each consecutive kill adds 25
 - Confirm consecutive kills display the streak count and increased reward.
 - Confirm the streak resets after six seconds without a kill.
 - Confirm the existing mission, save, and checkpoint flows remain unchanged.
+
+## Runtime test status
+
+The repository contains `tests/mission_runtime_smoke.tscn`, which can be run with Godot 4.7 in headless mode:
+
+```text
+godot --headless --path . --scene res://tests/mission_runtime_smoke.tscn
+```
+
+This test is available for startup, restart, combat-object creation, and save/load coverage. The kill-streak timing and the new contract presentations still require interactive runtime testing.
+
+## 執行期測試狀態
+
+專案包含 `tests/mission_runtime_smoke.tscn`，可使用 Godot 4.7 無頭模式執行：
+
+```text
+godot --headless --path . --scene res://tests/mission_runtime_smoke.tscn
+```
+
+此測試可驗證啟動、重啟、戰鬥物件建立及存檔載入流程。擊殺連殺計時和新的合約任務呈現仍需要在遊戲執行期間互動測試。
