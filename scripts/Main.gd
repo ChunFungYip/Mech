@@ -291,7 +291,7 @@ func _spawn_random_city_encounter(point_index: int, center: Vector3) -> void:
 		_city_contract_complete = true
 		UpgradeManager.add_credits(CITY_CONTRACT_REWARD)
 		if hud != null and hud.has_method("_on_announcement"):
-			hud.call("_on_announcement", "CITY CONTRACT COMPLETE // +%d CREDITS" % CITY_CONTRACT_REWARD)
+			hud.call_deferred("_on_announcement", "CITY CONTRACT COMPLETE // +%d CREDITS" % CITY_CONTRACT_REWARD)
 
 func _spawn_enemy(spawn_position: Vector3, encounter_name: String, enemy_type: int = ENEMY_TYPE_HEAVY) -> Node3D:
 	_enemy_spawn_serial += 1

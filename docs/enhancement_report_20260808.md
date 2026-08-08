@@ -22,7 +22,7 @@ The prototype already provides a playable neon-city combat loop with four enemy 
 - Make mission completion and failure rules reusable.
 - Add authored mission briefings and rewards.
 
-#### Batch 2, slice 1 implementation
+#### Batch 2, slice 1 implementation notes
 
 The first mission-variety slice is an optional **City Contract**. Triggering three
 random city ambushes completes the contract and awards 300 credits. It does not
