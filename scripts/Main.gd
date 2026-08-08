@@ -73,6 +73,7 @@ const CITY_CONTRACT_REWARD: int = 300
 const MISSION_VARIANT_NAMES: Array[String] = ["CONVOY DEFENSE", "AREA HOLD", "EXTRACTION", "TERMINAL HACK"]
 const MISSION_VARIANT_REWARDS: Array[int] = [450, 500, 550, 600]
 const SALVAGE_REWARD: int = 125
+const SALVAGE_SCORE_BONUS: int = 250
 
 const RANDOM_CITY_SPAWN_POINT_COUNT: int = 8
 const RANDOM_CITY_SPAWN_TRIGGER_DISTANCE: float = 20.0
@@ -337,7 +338,7 @@ func _update_optional_objectives(delta: float) -> void:
 		if player.global_position.distance_to(salvage.global_position) < 2.4:
 			salvage.visible = false
 			_salvage_collected += 1
-			mission_score += 250
+			mission_score += SALVAGE_SCORE_BONUS
 			UpgradeManager.add_credits(SALVAGE_REWARD)
 			if hud != null and hud.has_method("_on_announcement"):
 				hud.call("_on_announcement", "SALVAGE RECOVERED // +%d CREDITS" % SALVAGE_REWARD)
@@ -710,7 +711,7 @@ func get_mission_score() -> int:
 	return mission_score
 
 func get_salvage_status() -> String:
-	return "%02d/05" % _salvage_collected
+	return "%02d/%02d" % [_salvage_collected, _salvage_nodes.size()]
 
 func set_challenge_mode(enabled: bool) -> void:
 	challenge_mode = enabled
@@ -726,10 +727,10 @@ func start_new_game_plus() -> void:
 
 func _on_enemy_died(_enemy: Node) -> void:
 	kills += 1
-	mission_score += 100 + _kill_streak * 25
 	_kill_streak = _kill_streak + 1 if _kill_streak_timer > 0.0 else 1
 	_kill_streak_timer = KILL_STREAK_WINDOW_SECONDS
 	var reward := 100 + (_kill_streak - 1) * KILL_STREAK_BONUS_PER_KILL
+	mission_score += reward
 	UpgradeManager.add_credits(reward)
 	if hud != null and hud.has_method("_on_announcement"):
 		var streak_text := " // STREAK x%02d" % _kill_streak if _kill_streak >= KILL_STREAK_DISPLAY_THRESHOLD else ""
